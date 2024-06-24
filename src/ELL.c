@@ -52,7 +52,8 @@ ELLMatrix *toELL(float **matrix, uint64_t m, uint64_t n) {
 
   uint64_t elements_added = 0;
   for (uint64_t i = 0; i < n; i++) { // iterate columns
-    int added = 0;
+    uint64_t added = 0;
+    uint64_t dc = -1;
     for (uint64_t j = 0; j < m; j++) { // iterate rows
       if (matrix[j][i] != 0) {
         (result->values)[elements_added] = matrix[j][i];
@@ -61,11 +62,13 @@ ELLMatrix *toELL(float **matrix, uint64_t m, uint64_t n) {
         added++;
         if (elements_added % (max) == 0)
           break;
+      } else {
+        dc = j;
       }
     }
     for (; added < max; added++) {
-      (result->values)[elements_added] = 0; //define how to handle dc
-      (result->indicies)[elements_added] = 0;
+      (result->values)[elements_added] = 0;
+      (result->indicies)[elements_added] = dc;
       elements_added++;
     }
   }
@@ -73,7 +76,6 @@ ELLMatrix *toELL(float **matrix, uint64_t m, uint64_t n) {
   return result;
 }
 
-//Doesnt work properly bc of dc
 float **fromELL(ELLMatrix *m) {
   float **result;
   result = (float **)calloc(m->rows, sizeof(float *));

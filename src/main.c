@@ -5,8 +5,8 @@
 
 void matr_mult_ellpack(const void *a, const void *b, void *result) {
   // Cast to structure
-  ELLMatrix *matrix_a = ((ELLMatrix *)a);
-  ELLMatrix *matrix_b = ((ELLMatrix *)b);
+  ELLMatrix *matrix_a = (ELLMatrix *)a;
+  ELLMatrix *matrix_b = (ELLMatrix *)b;
 
   // Check if multiplication is possible
   if (matrix_a->cols != matrix_b->rows) {
@@ -14,14 +14,17 @@ void matr_mult_ellpack(const void *a, const void *b, void *result) {
   }
 
   // initialize result
-  ELLMatrix result_matrix;
-  result_matrix.rows = matrix_a->rows;
-  result_matrix.cols = matrix_b->cols;
-  result_matrix.values =
-      malloc(result_matrix.cols * result_matrix.rows * sizeof(float));
+  float **ma = fromELL(matrix_a);
+  float **mb = fromELL(matrix_b);
+  float **mr = (float **)result;
 
-  for (int i = 0; i < matrix_a->nonZero; i++) {
+  for (int i = 0; i < matrix_a->rows; i++) {
+    for (int j = 0; j < matrix_b->cols; j++) {
+      mr[i][j] += ma[i][j] * mb[j][i];
+    }
   }
+
+  result = mr;
 }
 
 int main(void) {
@@ -108,8 +111,8 @@ int main(void) {
   free(ell->indicies);
   free(ell->values);
   free(ell);
-  free(transposed -> values);
-  free(transposed -> indicies);
+  free(transposed->values);
+  free(transposed->indicies);
   free(transposed);
 
   return EXIT_SUCCESS;
