@@ -38,6 +38,7 @@ void matr_mult_ellpack(const void *a, const void *b, void *result) {
     }
   }
 
+  #pragma omp parallel for collapse(2)
   for (uint64_t i = 0; i < matrix_a->rows; i++) {
     for (uint64_t j = 0; j < matrix_b->cols; j++) {
       if (matrix_a->cols > 3) {
@@ -95,7 +96,7 @@ void matr_mult_ellpack_v2(const void *a, const void *b, void *result) {
       return;
     }
   }
-
+  #pragma omp for
   for (uint64_t i = 0; i < matrix_a->rows; i++) {
     for (uint64_t j = 0; j < matrix_b->cols; j++) {
       for (uint64_t k = 0; k < matrix_a->cols; k++) {
