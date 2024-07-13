@@ -1,3 +1,4 @@
+#include "matrix.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,9 +17,12 @@ typedef struct {
  * struct
  *
  */
-ELLMatrix *toELL(float **matrix, uint64_t m, uint64_t n) {
+ELLMatrix *toELL(Matrix *matrix) {
 
   ELLMatrix *result; // initialize
+  uint64_t m = matrix->rows;
+  uint64_t n = matrix->cols;
+
   result = (ELLMatrix *)malloc(sizeof(ELLMatrix));
   if (!result) {
     return NULL;
@@ -31,7 +35,7 @@ ELLMatrix *toELL(float **matrix, uint64_t m, uint64_t n) {
   // calculate max number of non Zero values per column
   for (uint64_t i = 0; i < m; i++) // Use Cache properly
     for (uint64_t j = 0; j < n; j++)
-      if (matrix[i][j] != 0)
+      if (matrix->data[i][j] != 0)
         nonZero[j]++;
 
   uint64_t max = 0;
@@ -55,8 +59,8 @@ ELLMatrix *toELL(float **matrix, uint64_t m, uint64_t n) {
     uint64_t added = 0;
     uint64_t dc = -1;
     for (uint64_t j = 0; j < m; j++) { // iterate rows
-      if (matrix[j][i] != 0) {
-        (result->values)[elements_added] = matrix[j][i];
+      if (matrix->data[j][i] != 0) {
+        (result->values)[elements_added] = matrix->data[j][i];
         (result->indicies)[elements_added] = j;
         elements_added++;
         added++;
@@ -76,51 +80,30 @@ ELLMatrix *toELL(float **matrix, uint64_t m, uint64_t n) {
   return result;
 }
 
-float **fromELL(ELLMatrix *m) {
-  float **result;
-  result = (float **)calloc(m->rows, sizeof(float *));
-  if (!result)
-    return NULL;
-
-  for (int i = 0; i < m->rows; i++) {
-    result[i] = calloc(m->cols, sizeof(float));
-    if (!result)
-      return NULL;
-  }
+Matrix *fromELL(ELLMatrix *m) {
+  Matrix *result = createMatrix(m->rows, m->cols);
+  result->cols = m->cols;
+  result->rows = m->rows;
 
   for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
-    result[m->indicies[i]][i / m->nonZero] = m->values[i];
+    result->data[m->indicies[i]][i / m->nonZero] = m->values[i];
   }
-
   return result;
 }
 
 ELLMatrix *transpose(ELLMatrix *m) {
-  float **result;
-  result = (float **)calloc(m->cols, sizeof(float *));
-  if (!result)
-    return NULL;
-
-  for (uint64_t i = 0; i < m->cols; i++) {
-    result[i] = calloc(m->rows, sizeof(float));
-    if (!result)
-      return NULL;
-  }
-
+  Matrix *result = createMatrix(m->rows, m->cols);
   for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
-    result[i / m->nonZero][m->indicies[i]] = m->values[i];
+    result->data[i / m->nonZero][m->indicies[i]] = m->values[i];
   }
 
-  ELLMatrix *ell = toELL(result, m->cols, m->rows);
-  for (uint64_t i = 0; i < m->cols; i++) {
-    free(result[i]);
-  }
-  free(result);
+  ELLMatrix *ell = toELL(result);
+  freeMatrix(result);
   return ell;
 }
 
-void freeELL(ELLMatrix* ell){
-  free(ell -> indicies);
-  free(ell -> values);
+void freeELL(ELLMatrix *ell) {
+  free(ell->indicies);
+  free(ell->values);
   free(ell);
 }

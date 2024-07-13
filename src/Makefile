@@ -6,7 +6,7 @@
 MAIN := main.c
 
 # assignment task file
-ASSIGNMENT := ELL.c
+ASSIGNMENT := ELL.c matrix.c 
 
 # Additional flags for the compiler
 CFLAGS := 
