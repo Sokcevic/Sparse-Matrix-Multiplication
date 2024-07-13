@@ -1,4 +1,4 @@
-#include "ELL.c"
+#include "ELL.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
