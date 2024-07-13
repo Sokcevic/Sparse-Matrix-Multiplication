@@ -59,8 +59,11 @@ void matr_mult_ellpack(const void *a, const void *b, void *result) {
       }
     }
   }
-  *((ELLMatrix *)result) = *toELL(mr, matrix_a->rows, matrix_b->cols);
+  ELLMatrix *mx = toELL(mr, matrix_a->rows, matrix_b->cols);
+  *((ELLMatrix *)result) = *mx;
 
+  free(mx);
+  freeELL(matrix_b);
   freeMatrix(ma, matrix_a->rows);
   freeMatrix(mb, matrix_b->rows);
   freeMatrix(mr, matrix_a->rows);
@@ -101,8 +104,10 @@ void matr_mult_ellpack_v2(const void *a, const void *b, void *result) {
     }
   }
 
-  *((ELLMatrix *)result) = *toELL(mr, matrix_a->rows, matrix_b->cols);
+  ELLMatrix *mx = toELL(mr, matrix_a->rows, matrix_b->cols);
+  *((ELLMatrix *)result) = *mx;
 
+  free(mx);
   freeMatrix(ma, matrix_a->rows);
   freeMatrix(mb, matrix_b->rows);
   freeMatrix(mr, matrix_a->rows);
@@ -136,6 +141,7 @@ int main(void) {
   // Convert to ell
   ELLMatrix *ell = toELL(matrix, m, n);
   if (!ell) {
+    freeMatrix(matrix, 4);
     return -1;
   }
   printf("ELLMATRIX: \n");
@@ -159,6 +165,10 @@ int main(void) {
     }
     printf("\n");
   }
+  freeMatrix(matrix, 4);
+  freeELL(result);
+  freeMatrix(undo, 4);
+  freeELL(ell);
 
   /**
     for (int i = 0; i < (ell->cols) * (ell->nonZero); i++) {
