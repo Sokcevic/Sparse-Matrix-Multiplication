@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/types.h>
 
 typedef struct{
   uint64_t rows;
@@ -27,8 +26,10 @@ void matmul(Matrix* a, Matrix* b, Matrix* result){
   }
 }
 
+
+
 int main(void)
 {
-  
+
   return EXIT_SUCCESS;
 }

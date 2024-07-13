@@ -11,7 +11,115 @@ void freeMatrix(float **m, uint64_t rows) {
   free(m);
 }
 
-void matr_mult_ellpack(const void *a, const void *b, void *result) {
+//Matmul parallel
+void matr_mult_ellpack_v5(const void *a, const void *b, void *result) {
+  // Cast to structure
+  ELLMatrix *matrix_a = (ELLMatrix *)a;
+  ELLMatrix *matrix_b = (ELLMatrix *)b;
+
+  // Check if multiplication is possible
+  if (matrix_a->cols != matrix_b->rows) {
+    return; // Not allowed
+  }
+
+  // initialize result
+  float **ma = fromELL(matrix_a);
+  float **mb = fromELL(matrix_b);
+  float **mr = calloc(matrix_a->rows, sizeof(float *));
+  if (mr == NULL) {
+    return;
+  }
+  for (uint64_t i = 0; i < matrix_a->rows; i++) {
+    mr[i] = calloc(matrix_b->cols, sizeof(float));
+    if (mr[i] == NULL) {
+      freeMatrix(ma, matrix_a->rows);
+      freeMatrix(mb, matrix_b->rows);
+      freeMatrix(mr, matrix_a->rows);
+      return;
+    }
+  }
+  #pragma omp parallel for collapse(3)
+  for (uint64_t i = 0; i < matrix_a->rows; i++) {
+    for (uint64_t j = 0; j < matrix_b->cols; j++) {
+      for (uint64_t k = 0; k < matrix_a->cols; k++) {
+        #pragma omp atomic
+        mr[i][j] += ma[i][k] * mb[k][j];
+      }
+    }
+  }
+
+  ELLMatrix *mx = toELL(mr, matrix_a->rows, matrix_b->cols);
+  *((ELLMatrix *)result) = *mx;
+
+  free(mx);
+  freeMatrix(ma, matrix_a->rows);
+  freeMatrix(mb, matrix_b->rows);
+  freeMatrix(mr, matrix_a->rows);
+}
+
+
+// Parallel SIMD
+void matr_mult_ellpack_v4(const void *a, const void *b, void *result) {
+  // Cast to structure
+  ELLMatrix *matrix_a = (ELLMatrix *)a;
+  ELLMatrix *matrix_b = transpose((ELLMatrix *)b);
+
+  // Check if multiplication is possible
+  if (matrix_a->cols != matrix_b->rows) {
+    return; // Not allowed
+  }
+
+  // initialize result
+  float **ma = fromELL(matrix_a);
+  float **mb = fromELL(matrix_b);
+  float **mr = calloc(matrix_a->rows, sizeof(float *));
+  if (mr == NULL) {
+    return;
+  }
+  for (uint64_t i = 0; i < matrix_a->rows; i++) {
+    mr[i] = calloc(matrix_b->cols, sizeof(float));
+    if (mr[i] == NULL) {
+      freeMatrix(ma, matrix_a->rows);
+      freeMatrix(mb, matrix_b->rows);
+      freeMatrix(mr, matrix_a->rows);
+      return;
+    }
+  }
+#pragma omp parallel for collapse(3)
+  for (uint64_t i = 0; i < matrix_a->rows; i++) {
+    for (uint64_t j = 0; j < matrix_b->cols; j++) {
+      if (matrix_a->cols > 3) {
+        __m128 sum = _mm_setzero_ps(); // Initialize sum to zero
+        for (uint64_t k = 0; k < matrix_a->cols; k += 4) {
+          __m128 a_values = _mm_loadu_ps(&ma[i][k]);
+          __m128 b_values = _mm_loadu_ps(&mb[j][k]);
+          __m128 product = _mm_mul_ps(a_values, b_values);
+          sum = _mm_add_ps(sum, product);
+        }
+        float temp[4];
+        _mm_storeu_ps(temp, sum);
+#pragma omp atomic
+        mr[i][j] = temp[0] + temp[1] + temp[2] + temp[3];
+      }
+      for (int k = matrix_a->cols - (matrix_a->cols % 4); k < matrix_a->cols;
+           k++) {
+#pragma omp atomic
+        mr[i][j] += ma[i][k];
+      }
+    }
+  }
+  ELLMatrix *mx = toELL(mr, matrix_a->rows, matrix_b->cols);
+  *((ELLMatrix *)result) = *mx;
+
+  free(mx);
+  freeMatrix(ma, matrix_a->rows);
+  freeMatrix(mb, matrix_b->rows);
+  freeELL(matrix_b);
+  freeMatrix(mr, matrix_a->rows);
+}
+
+// SIMD Matmul
+void matr_mult_ellpack_v3(const void *a, const void *b, void *result) {
   // Cast to structure
   ELLMatrix *matrix_a = (ELLMatrix *)a;
   ELLMatrix *matrix_b = transpose((ELLMatrix *)b);
@@ -38,7 +146,6 @@ void matr_mult_ellpack(const void *a, const void *b, void *result) {
     }
   }
 
-  #pragma omp parallel for collapse(2)
   for (uint64_t i = 0; i < matrix_a->rows; i++) {
     for (uint64_t j = 0; j < matrix_b->cols; j++) {
       if (matrix_a->cols > 3) {
@@ -64,12 +171,13 @@ void matr_mult_ellpack(const void *a, const void *b, void *result) {
   *((ELLMatrix *)result) = *mx;
 
   free(mx);
-  freeELL(matrix_b);
   freeMatrix(ma, matrix_a->rows);
   freeMatrix(mb, matrix_b->rows);
+  freeELL(matrix_b);
   freeMatrix(mr, matrix_a->rows);
 }
 
+// Matmul
 void matr_mult_ellpack_v2(const void *a, const void *b, void *result) {
   // Cast to structure
   ELLMatrix *matrix_a = (ELLMatrix *)a;
@@ -96,7 +204,7 @@ void matr_mult_ellpack_v2(const void *a, const void *b, void *result) {
       return;
     }
   }
-  #pragma omp for
+
   for (uint64_t i = 0; i < matrix_a->rows; i++) {
     for (uint64_t j = 0; j < matrix_b->cols; j++) {
       for (uint64_t k = 0; k < matrix_a->cols; k++) {
@@ -151,7 +259,7 @@ int main(void) {
   printf("values: ");
   ELLMatrix *result = calloc(1, sizeof(ELLMatrix));
 
-  matr_mult_ellpack(ell, ell, result);
+  matr_mult_ellpack_v4(ell, ell, result);
   printf("\n");
   float **undo = fromELL(result);
   if (!undo) {
