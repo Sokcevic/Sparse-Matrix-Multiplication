@@ -21,22 +21,30 @@ Matrix *generateRandomMatrix(float zeroRate, uint64_t rows, uint64_t cols) {
   return result;
 }
 
-void setup() { srand(42); }
+void setup() { srand(69); }
 
-void test_matmul() {
+void test_matmul(uint64_t rows_a, uint64_t cols_a, uint64_t rows_b, uint64_t cols_b, float sparsity, void (*f)(const void*, const void*, void*)) {
   Matrix *a;
   Matrix *b;
   Matrix *c;
-  for (int i = 0; i < 10; i++) {
-    a = generateRandomMatrix(0.6, 17, 21);
-    b = generateRandomMatrix(0.6, 21, 13);
-    c = createMatrix(17, 13);
+  for (int i = 0; i < 100; i++) {
+    c = generateRandomMatrix(sparsity, rows_a, cols_a);
+    ELLMatrix *cl = toELL(c);
+    bool v = matrixEqual(c, fromELL(cl));
+    if(!v){
+    printf("fail!");
+    return;
+    }
+    /**
+    a = generateRandomMatrix(sparsity, rows_a , cols_a);
+    b = generateRandomMatrix(sparsity, rows_b, cols_b);
+    c = createMatrix(rows_a, cols_b);
 
     ELLMatrix *al = toELL(a);
     ELLMatrix *bl = toELL(b);
     ELLMatrix *cl = toELL(c);
 
-    matr_mult_ellpack_v2(al, bl, cl);
+    f(al, bl, cl);
 
     freeELL(al);
     freeELL(bl);
@@ -57,12 +65,18 @@ void test_matmul() {
       printf("fail!");
       return;
     }
+    **/
   }
   printf("success!");
 }
 
+void test_matmul_large() {
+  test_matmul(700, 500, 500, 900, 0.6, &matr_mult_ellpack_v3);
+}
+
+
 int main(void) {
 
-  test_matmul();
+  test_matmul_large();
   return EXIT_SUCCESS;
 }

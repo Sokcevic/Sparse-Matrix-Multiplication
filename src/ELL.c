@@ -1,5 +1,6 @@
 #include "matrix.h"
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -44,13 +45,23 @@ ELLMatrix *toELL(Matrix *matrix) {
       max = nonZero[i];
 
   result->nonZero = max;
+  __uint128_t size = (__uint128_t)max * (__uint128_t)n;
 
-  result->values = malloc(max * n * sizeof(float));
+  if (size == 0) {
+    result -> indicies = NULL;
+    result -> values = NULL;
+    return result;
+  }
+
+  result->values = (float *)calloc(size, sizeof(float));
   if (!result->values) {
+    free(result);
     return NULL;
   }
-  result->indicies = malloc(max * n * sizeof(uint64_t));
+  result->indicies = (uint64_t *)calloc(size, sizeof(uint64_t));
   if (!result->indicies) {
+    free(result->values);
+    free(result);
     return NULL;
   }
 
@@ -92,7 +103,7 @@ Matrix *fromELL(ELLMatrix *m) {
 }
 
 ELLMatrix *transpose(ELLMatrix *m) {
-  Matrix *result = createMatrix(m->rows, m->cols);
+  Matrix *result = createMatrix(m->cols, m->rows);
   for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
     result->data[i / m->nonZero][m->indicies[i]] = m->values[i];
   }

@@ -25,9 +25,11 @@ void printMatrix(Matrix *m) {
 void matmul(Matrix *a, Matrix *b, Matrix *result) {
   for (uint64_t i = 0; i < a->rows; i++) {
     for (uint64_t j = 0; j < b->cols; j++) {
+      float sum = 0.0;
       for (uint64_t k = 0; k < a->cols; k++) {
-        result->data[i][j] += a->data[i][k] * b->data[k][j];
+        sum += a->data[i][k] * b->data[k][j];
       }
+      result->data[i][j] = sum;
     }
   }
 }
