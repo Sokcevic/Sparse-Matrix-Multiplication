@@ -33,7 +33,7 @@ debug: CFLAGS += -g
 debug: $(TARGET)
 
 # Release build
-release: CFLAGS += -O0
+release: CFLAGS += -O4
 release: $(TARGET)
 
 # recipe for building the program
