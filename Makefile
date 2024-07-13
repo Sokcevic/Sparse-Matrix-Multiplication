@@ -3,10 +3,10 @@
 # ---------------------------------------
 
 # entry point for the program and target name
-MAIN := src/main.c
+MAIN := main.c
 
 # assignment task file
-ASSIGNMENT := src/ELL.c
+ASSIGNMENT := ELL.c
 
 # Additional flags for the compiler
 CFLAGS := 
