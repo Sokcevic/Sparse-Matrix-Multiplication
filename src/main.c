@@ -2,8 +2,71 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <tmmintrin.h>
+
+void freeMatrix(float **m, uint64_t rows) {
+  for (int i = 0.0; i < rows; i++) {
+    free(m[i]);
+  }
+  free(m);
+}
 
 void matr_mult_ellpack(const void *a, const void *b, void *result) {
+  // Cast to structure
+  ELLMatrix *matrix_a = (ELLMatrix *)a;
+  ELLMatrix *matrix_b = transpose((ELLMatrix *)b);
+
+  // Check if multiplication is possible
+  if (matrix_a->cols != matrix_b->rows) {
+    return; // Not allowed
+  }
+
+  // initialize result
+  float **ma = fromELL(matrix_a);
+  float **mb = fromELL(matrix_b);
+  float **mr = calloc(matrix_a->rows, sizeof(float *));
+  if (mr == NULL) {
+    return;
+  }
+  for (uint64_t i = 0; i < matrix_a->rows; i++) {
+    mr[i] = calloc(matrix_b->cols, sizeof(float));
+    if (mr[i] == NULL) {
+      freeMatrix(ma, matrix_a->rows);
+      freeMatrix(mb, matrix_b->rows);
+      freeMatrix(mr, matrix_a->rows);
+      return;
+    }
+  }
+
+  for (uint64_t i = 0; i < matrix_a->rows; i++) {
+    for (uint64_t j = 0; j < matrix_b->cols; j++) {
+      if (matrix_a->cols > 3) {
+        __m128 sum = _mm_setzero_ps(); // Initialize sum to zero
+        for (uint64_t k = 0; k < matrix_a->cols; k += 4) {
+          __m128 a_values = _mm_loadu_ps(&ma[i][k]);
+          __m128 b_values = _mm_loadu_ps(&mb[j][k]);
+          __m128 product = _mm_mul_ps(a_values, b_values);
+          sum = _mm_add_ps(sum, product);
+        }
+        float temp[4];
+        _mm_storeu_ps(temp, sum);
+
+        mr[i][j] = temp[0] + temp[1] + temp[2] + temp[3];
+      }
+      for (int k = matrix_a->cols - (matrix_a->cols % 4); k < matrix_a->cols;
+           k++) {
+        mr[i][j] += ma[i][k];
+      }
+    }
+  }
+  *((ELLMatrix *)result) = *toELL(mr, matrix_a->rows, matrix_b->cols);
+
+  freeMatrix(ma, matrix_a->rows);
+  freeMatrix(mb, matrix_b->rows);
+  freeMatrix(mr, matrix_a->rows);
+}
+
+void matr_mult_ellpack_v2(const void *a, const void *b, void *result) {
   // Cast to structure
   ELLMatrix *matrix_a = (ELLMatrix *)a;
   ELLMatrix *matrix_b = (ELLMatrix *)b;
@@ -16,15 +79,33 @@ void matr_mult_ellpack(const void *a, const void *b, void *result) {
   // initialize result
   float **ma = fromELL(matrix_a);
   float **mb = fromELL(matrix_b);
-  float **mr = (float **)result;
-
-  for (int i = 0; i < matrix_a->rows; i++) {
-    for (int j = 0; j < matrix_b->cols; j++) {
-      mr[i][j] += ma[i][j] * mb[j][i];
+  float **mr = calloc(matrix_a->rows, sizeof(float *));
+  if (mr == NULL) {
+    return;
+  }
+  for (uint64_t i = 0; i < matrix_a->rows; i++) {
+    mr[i] = calloc(matrix_b->cols, sizeof(float));
+    if (mr[i] == NULL) {
+      freeMatrix(ma, matrix_a->rows);
+      freeMatrix(mb, matrix_b->rows);
+      freeMatrix(mr, matrix_a->rows);
+      return;
     }
   }
 
-  result = mr;
+  for (uint64_t i = 0; i < matrix_a->rows; i++) {
+    for (uint64_t j = 0; j < matrix_b->cols; j++) {
+      for (uint64_t k = 0; k < matrix_a->cols; k++) {
+        mr[i][j] += ma[i][k] * mb[k][j];
+      }
+    }
+  }
+
+  *((ELLMatrix *)result) = *toELL(mr, matrix_a->rows, matrix_b->cols);
+
+  freeMatrix(ma, matrix_a->rows);
+  freeMatrix(mb, matrix_b->rows);
+  freeMatrix(mr, matrix_a->rows);
 }
 
 int main(void) {
@@ -50,8 +131,8 @@ int main(void) {
       matrix[i][j] = a[i][j];
     }
   }
-  // Initialization Done
 
+  // Initialization Done
   // Convert to ell
   ELLMatrix *ell = toELL(matrix, m, n);
   if (!ell) {
@@ -61,18 +142,11 @@ int main(void) {
   printf("matrix dimensions: %lu x %lu \n", ell->rows, ell->cols);
   printf("NoNonzero: %lu\n", ell->nonZero);
   printf("values: ");
-  for (int i = 0; i < (ell->cols) * (ell->nonZero); i++) {
-    printf("%f, ", (ell->values)[i]);
-  }
-  printf("\n");
+  ELLMatrix *result = calloc(1, sizeof(ELLMatrix));
 
-  printf("indices: ");
-  for (int i = 0; i < (ell->cols) * (ell->nonZero); i++) {
-    printf("%lu, ", (ell->indicies)[i]);
-  }
+  matr_mult_ellpack(ell, ell, result);
   printf("\n");
-
-  float **undo = fromELL(ell);
+  float **undo = fromELL(result);
   if (!undo) {
     return -1;
   }
@@ -86,34 +160,61 @@ int main(void) {
     printf("\n");
   }
 
-  printf("Transpose: \n\n");
-  ELLMatrix *transposed = transpose(ell);
-  if (!transposed) {
-    return -1;
-  }
-  undo = fromELL(transposed);
-
-  for (uint64_t i = 0; i < transposed->rows; i++) {
-    for (uint64_t j = 0; j < transposed->cols; j++) {
-      printf("%f\t", undo[i][j]);
+  /**
+    for (int i = 0; i < (ell->cols) * (ell->nonZero); i++) {
+      printf("%f, ", (ell->values)[i]);
     }
     printf("\n");
-  }
 
-  // free space
-  for (int i = 0; i < m; i++) {
-    free(*(matrix + i));
-    free(undo[i]);
-  }
-  free(undo);
-  free(matrix);
+    printf("indices: ");
+    for (int i = 0; i < (ell->cols) * (ell->nonZero); i++) {
+      printf("%lu, ", (ell->indicies)[i]);
+    }
+    printf("\n");
 
-  free(ell->indicies);
-  free(ell->values);
-  free(ell);
-  free(transposed->values);
-  free(transposed->indicies);
-  free(transposed);
+    float **undo = fromELL(ell);
+    if (!undo) {
+      return -1;
+    }
+
+    printf("Undo: \n\n");
+
+    for (uint64_t i = 0; i < ell->rows; i++) {
+      for (uint64_t j = 0; j < ell->cols; j++) {
+        printf("%f\t", undo[i][j]);
+      }
+      printf("\n");
+    }
+
+    printf("Transpose: \n\n");
+    ELLMatrix *transposed = transpose(ell);
+    if (!transposed) {
+      return -1;
+    }
+    undo = fromELL(transposed);
+
+    for (uint64_t i = 0; i < transposed->rows; i++) {
+      for (uint64_t j = 0; j < transposed->cols; j++) {
+        printf("%f\t", undo[i][j]);
+      }
+      printf("\n");
+    }
+
+    // free space
+    for (int i = 0; i < m; i++) {
+      free(*(matrix + i));
+      free(undo[i]);
+    }
+    free(undo);
+    free(matrix);
+
+    free(ell->indicies);
+    free(ell->values);
+    free(ell);
+    free(transposed->values);
+    free(transposed->indicies);
+    free(transposed);
+    **/
 
   return EXIT_SUCCESS;
 }

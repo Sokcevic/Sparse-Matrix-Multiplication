@@ -118,3 +118,9 @@ ELLMatrix *transpose(ELLMatrix *m) {
   free(result);
   return ell;
 }
+
+void freeELL(ELLMatrix* ell){
+  free(ell -> indicies);
+  free(ell -> values);
+  free(ell);
+}
