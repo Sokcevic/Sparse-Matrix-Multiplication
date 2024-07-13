@@ -1,5 +1,9 @@
+#include "ELL.h"
+#include "main.h"
 #include "matrix.h"
+#include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 Matrix *generateRandomMatrix(float zeroRate, uint64_t rows, uint64_t cols) {
@@ -19,12 +23,46 @@ Matrix *generateRandomMatrix(float zeroRate, uint64_t rows, uint64_t cols) {
 
 void setup() { srand(42); }
 
-void test_matmul() {}
+void test_matmul() {
+  Matrix *a;
+  Matrix *b;
+  Matrix *c;
+  for (int i = 0; i < 10; i++) {
+    a = generateRandomMatrix(0.6, 17, 21);
+    b = generateRandomMatrix(0.6, 21, 13);
+    c = createMatrix(17, 13);
+
+    ELLMatrix *al = toELL(a);
+    ELLMatrix *bl = toELL(b);
+    ELLMatrix *cl = toELL(c);
+
+    matr_mult_ellpack_v2(al, bl, cl);
+
+    freeELL(al);
+    freeELL(bl);
+
+    Matrix *c2 = fromELL(cl);
+
+    freeELL(cl);
+
+    matmul(a, b, c);
+    freeMatrix(a);
+    freeMatrix(b);
+
+    bool equal = matrixEqual(c, c2);
+    freeMatrix(c);
+    freeMatrix(c2);
+
+    if (!equal) {
+      printf("fail!");
+      return;
+    }
+  }
+  printf("success!");
+}
 
 int main(void) {
-  setup();
-  Matrix *matrix = generateRandomMatrix(0.8F, 4, 5);
-  printMatrix(matrix);
-  freeMatrix(matrix);
+
+  test_matmul();
   return EXIT_SUCCESS;
 }

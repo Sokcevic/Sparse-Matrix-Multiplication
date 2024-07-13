@@ -168,4 +168,3 @@ void matr_mult_ellpack_v2(const void *a, const void *b, void *result) {
   freeMatrix(mr);
 }
 
-int main(void) { return EXIT_SUCCESS; }

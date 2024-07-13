@@ -3,10 +3,10 @@
 # ---------------------------------------
 
 # entry point for the program and target name
-MAIN := main.c
+MAIN := test.c ELL.c matrix.c
 
 # assignment task file
-ASSIGNMENT := ELL.c matrix.c 
+ASSIGNMENT :=  main.c
 
 # Additional flags for the compiler
 CFLAGS := 
