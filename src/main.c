@@ -4,6 +4,23 @@
 #include <stdlib.h>
 #include <tmmintrin.h>
 
+
+void matr_mult_ellpack_v6(const void *a, const void *b, void *result) {
+// Cast to structure
+  ELLMatrix *matrix_a = transpose((ELLMatrix *)a);
+  ELLMatrix *matrix_b = (ELLMatrix *)b;
+
+  // Check if multiplication is possible
+  if (matrix_a->rows != matrix_b->rows) {
+    return; // Not allowed TODO: Error Handling
+  }
+
+
+
+  free(matrix_a);
+}
+
+
 // Matmul parallel
 void matr_mult_ellpack_v5(const void *a, const void *b, void *result) {
   // Cast to structure

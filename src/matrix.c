@@ -1,5 +1,4 @@
 #include "matrix.h"
-#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -38,20 +37,20 @@ void matmul(Matrix *a, Matrix *b, Matrix *result) {
 Matrix *createMatrix(uint64_t rows, uint64_t cols) {
   Matrix *result = malloc(sizeof(Matrix));
   if (result == NULL) {
-    return NULL;
+    return NULL;//TODO: Error handling
   }
   result->rows = rows;
   result->cols = cols;
   result->data = malloc(rows * sizeof(float *));
   if (result->data == NULL) {
     free(result);
-    return NULL;
+    return NULL;//TODO: Error handling
   }
   for (uint64_t i = 0; i < rows; i++) {
     result->data[i] = calloc(cols, sizeof(float));
     if (result->data[i] == NULL) {
       freeMatrix(result);
-      return NULL;
+      return NULL;//TODO: Error handling
     }
   }
   return result;
@@ -59,10 +58,10 @@ Matrix *createMatrix(uint64_t rows, uint64_t cols) {
 
 float matrixEqual(Matrix *a, Matrix *b) {
   if (a == NULL || b == NULL) {
-    return -1.0F;
+    return -1.0F;//TODO: Error handling
   }
   if (a->rows != b->rows || a->cols != b->cols) {
-    return -1.0F;
+    return -1.0F;//TODO: Error handling
   }
   float max = 0.0F;
   for (int i = 0; i < a->rows; i++) {
