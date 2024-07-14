@@ -27,15 +27,10 @@ void test_matmul(uint64_t rows_a, uint64_t cols_a, uint64_t rows_b, uint64_t col
   Matrix *a;
   Matrix *b;
   Matrix *c;
-  for (int i = 0; i < 100; i++) {
-    c = generateRandomMatrix(sparsity, rows_a, cols_a);
-    ELLMatrix *cl = toELL(c);
-    bool v = matrixEqual(c, fromELL(cl));
-    if(!v){
-    printf("fail!");
-    return;
-    }
-    /**
+  int incorrect = 0;
+  float maxdiff = 0.0;
+  int iterations = 10;
+  for (int i = 0; i < iterations; i++) {
     a = generateRandomMatrix(sparsity, rows_a , cols_a);
     b = generateRandomMatrix(sparsity, rows_b, cols_b);
     c = createMatrix(rows_a, cols_b);
@@ -57,21 +52,21 @@ void test_matmul(uint64_t rows_a, uint64_t cols_a, uint64_t rows_b, uint64_t col
     freeMatrix(a);
     freeMatrix(b);
 
-    bool equal = matrixEqual(c, c2);
+    float diff = matrixEqual(c, c2);
     freeMatrix(c);
     freeMatrix(c2);
 
-    if (!equal) {
-      printf("fail!");
-      return;
-    }
-    **/
+    if (diff != 0) {
+      incorrect++;
+      maxdiff = maxdiff > diff ? maxdiff : diff;
+    } 
   }
-  printf("success!");
+  printf("%d/%d correct.\n", iterations-incorrect, iterations);
+  printf("Max absolute difference: %f", maxdiff);
 }
 
 void test_matmul_large() {
-  test_matmul(700, 500, 500, 900, 0.6, &matr_mult_ellpack_v3);
+  test_matmul(3000, 5000, 5000, 9000, 0.9, &matr_mult_ellpack_v4);
 }
 
 

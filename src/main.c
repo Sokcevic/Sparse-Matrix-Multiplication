@@ -54,14 +54,14 @@ void matr_mult_ellpack_v4(const void *a, const void *b, void *result) {
   // initialize result
   Matrix *ma = fromELL(matrix_a);
   Matrix *mb = fromELL(matrix_b);
-  Matrix *mr = createMatrix(ma->rows, mb->cols);
+  Matrix *mr = createMatrix(ma->rows, mb->rows);
 
-#pragma omp parallel for collapse(2)
+  #pragma omp parallel for collapse(2)
   for (uint64_t i = 0; i < matrix_a->rows; i++) {
-    for (uint64_t j = 0; j < matrix_b->cols; j++) {
+    for (uint64_t j = 0; j < matrix_b->rows; j++) {
       if (matrix_a->cols > 3) {
         __m128 sum = _mm_setzero_ps(); // Initialize sum to zero
-        for (uint64_t k = 0; k < matrix_a->cols; k += 4) {
+        for (uint64_t k = 0; k < matrix_a->cols - (matrix_a->cols % 4); k += 4) {
           __m128 a_values = _mm_loadu_ps(&ma->data[i][k]);
           __m128 b_values = _mm_loadu_ps(&mb->data[j][k]);
           __m128 product = _mm_mul_ps(a_values, b_values);
@@ -69,12 +69,12 @@ void matr_mult_ellpack_v4(const void *a, const void *b, void *result) {
         }
         float temp[4];
         _mm_storeu_ps(temp, sum);
-        mr->data[i][j] = temp[0] + temp[1] + temp[2] + temp[3];
-      }
+        #pragma omp atomic
+        mr->data[i][j] += temp[0] + temp[1] + temp[2] + temp[3];
+      } 
       for (int k = matrix_a->cols - (matrix_a->cols % 4); k < matrix_a->cols;
            k++) {
-#pragma omp atomic
-        mr->data[i][j] += ma->data[i][k];
+        mr->data[i][j] += ma->data[i][k] * mb ->data[j][k];
       }
     }
   }
@@ -86,6 +86,7 @@ void matr_mult_ellpack_v4(const void *a, const void *b, void *result) {
   freeMatrix(mb);
   freeELL(matrix_b);
   freeMatrix(mr);
+
 }
 
 // SIMD Matmul

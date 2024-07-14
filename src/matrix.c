@@ -1,8 +1,9 @@
 #include "matrix.h"
+#include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 
 void freeMatrix(Matrix *a) {
   for (uint64_t i = 0; i < a->rows; i++) {
@@ -56,19 +57,22 @@ Matrix *createMatrix(uint64_t rows, uint64_t cols) {
   return result;
 }
 
-bool matrixEqual(Matrix* a, Matrix* b) {
-    if (a == NULL || b == NULL) {
-        return false;
+float matrixEqual(Matrix *a, Matrix *b) {
+  if (a == NULL || b == NULL) {
+    return -1.0F;
+  }
+  if (a->rows != b->rows || a->cols != b->cols) {
+    return -1.0F;
+  }
+  float max = 0.0F;
+  for (int i = 0; i < a->rows; i++) {
+    for (int j = 0; j < a->cols; j++) {
+      if (a->data[i][j] != b->data[i][j]) {
+        float value = a->data[i][j] - b->data[i][j];
+        value = value > 0 ? value : -value;
+        max = max > value ? max : value;
+      }
     }
-    if (a->rows != b->rows || a->cols != b->cols) {
-        return false;
-    }
-    for (int i = 0; i < a->rows; i++) {
-        for (int j = 0; j < a->cols; j++) {
-            if (a->data[i][j] != b->data[i][j]) {
-                return false;
-            }
-        }
-    }
-    return true;
+  }
+  return max;
 }

@@ -16,6 +16,6 @@ void freeMatrix(Matrix* a);
 void printMatrix(Matrix* m); 
 void matmul(Matrix* a, Matrix* b, Matrix* result);
 Matrix *createMatrix(uint64_t rows, uint64_t cols);
-bool matrixEqual(Matrix* a, Matrix* b);
+float matrixEqual(Matrix* a, Matrix* b);
 
 #endif 
