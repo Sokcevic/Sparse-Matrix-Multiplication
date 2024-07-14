@@ -18,5 +18,8 @@ ELLMatrix *toELL(Matrix *matrix);
 Matrix *fromELL(ELLMatrix *m);
 ELLMatrix *transpose(ELLMatrix *m);
 void freeELL(ELLMatrix *ell);
+ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero);
+float ellEquals(ELLMatrix *a, ELLMatrix *b);
+void printEll(ELLMatrix *m);
 
 #endif // ELLMATRIX_H

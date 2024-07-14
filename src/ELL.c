@@ -1,16 +1,11 @@
+#include "ELL.h"
 #include "matrix.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
-  uint64_t rows;
-  uint64_t cols;
-  uint64_t nonZero;   // max nonZero in any column
-  float *values;      // has cols * nonZero Elements
-  uint64_t *indicies; // has cols * nonZero Elements
-} ELLMatrix;
+
 
 ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
   ELLMatrix *result = malloc(sizeof(ELLMatrix));
@@ -20,6 +15,11 @@ ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
   result->rows = rows;
   result->cols = cols;
   result->nonZero = nonZero;
+  if (nonZero == 0) {
+    result -> indicies = NULL;
+    result -> values = NULL;
+    return result;
+  }
   result->indicies = calloc(result->cols * result->nonZero, sizeof(uint64_t));
   if (!result->indicies) {
     free(result);
@@ -157,6 +157,29 @@ ELLMatrix *transpose(ELLMatrix *m) {
   }
   free(occurrences);
   return result;
+}
+
+float ellEquals(ELLMatrix *a, ELLMatrix *b){
+  if (a -> cols != b -> cols || a -> rows != b -> rows || a -> nonZero != b -> nonZero) {
+    return -1.0F;
+  }
+  float max = 0.0F;
+  for (uint64_t i = 0; i < a -> cols * a -> nonZero; i++) {
+    if (a -> indicies[i] != b -> indicies[i]) return -2.0F;
+    if (a -> values[i] != b -> values[i] ) {
+      float val = a -> values[i] - b -> values[i];
+      val = val < 0 ? -val : val;
+      max = val > max ? val : max;
+    }
+  }
+  return max;
+}
+
+void printEll(ELLMatrix *m){
+  printf("ELL: \n");
+  printf("cols: %lu \n", m -> cols);
+  printf("rows: %lu \n", m -> rows);
+  printf("nonZero: %lu \n", m -> nonZero);
 }
 
 void freeELL(ELLMatrix *ell) {
