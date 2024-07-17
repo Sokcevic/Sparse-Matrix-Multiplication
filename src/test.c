@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include "Parser.h"
 
 Matrix *generateRandomMatrix(float zeroRate, uint64_t rows, uint64_t cols) {
   Matrix *result = createMatrix(rows, cols);
@@ -161,7 +162,13 @@ void test_matmul_large() {
 int main(void) {
 
    //test_matmul_large();
-  testELLMul(30000, 50000, 50000, 30000, 0.6, &matr_mult_ellpack_v7);
+  //testELLMul(30000, 50000, 50000, 30000, 0.6, &matr_mult_ellpack_v7);
   // testELL();
+  char input[] = "src/TestELLInput.txt";
+  ELLMatrix* test = textFileToEll(input);
+    printEll(test);
+  char output[] = "src/TestEllOutput.txt";
+    EllToTextFile(test, output);
+    freeELL(test);
   return EXIT_SUCCESS;
 }
