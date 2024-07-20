@@ -166,6 +166,7 @@ int main(void) {
   // testELL();
   char input[] = "src/TestELLInput.txt";
   ELLMatrix* test = textFileToEll(input);
+    if (test == NULL) return EXIT_FAILURE;
     printEll(test);
   char output[] = "src/TestEllOutput.txt";
     EllToTextFile(test, output);
