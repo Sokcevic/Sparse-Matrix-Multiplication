@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <tmmintrin.h>
+#include <getopt.h>
+#include "Parser.h"
+#include <time.h>
 
 void matr_mult_ellpack_v6(const void *a, const void *b, void *result) {
   // Cast to structure
@@ -258,4 +261,122 @@ void matr_mult_ellpack_v2(const void *a, const void *b, void *result) {
   freeMatrix(ma);
   freeMatrix(mb);
   freeMatrix(mr);
+}
+
+void printHelpMessage() {
+    printf("Help Message\n"
+           "-a <filename> : filename of Matrix a (required)\n"
+           "-b <filename> : filename of Matrix b (required)\n"
+           "-o <filename> : output-file (required)\n"
+           "-V <Number> : Version to be used. Default: 0\n"
+           "-B<Number> : Measure time for <Number> of executions. Default: 1\n"
+           "-h/--help : Help Message\n");
+}
+
+int main(int argc, char *argv[]) {
+    static struct option long_options[] = {
+            {"help", no_argument, 0,'h'}
+    };
+    int option;
+    int optionIndex = 0;
+    int implementation = 0;
+    int time = 0;
+    int numberOfCalls = 1;
+    char* a = NULL;
+    char* b = NULL;
+    char* o = NULL;
+    while ((option = getopt_long(argc, argv, "hV:B::a:b:o:", long_options, &optionIndex)) != -1) {
+        switch (option) {
+            case 'V':
+                if (implementation == 0) {
+                    implementation = atoi(optarg);
+                    printf("Program version: %d\n", implementation);
+                } else {
+                    fprintf(stderr, "Only one version!\n");
+                    return 1;
+                }
+                break;
+            case 'B':
+                if (time == 0) {
+                    time = 1;
+                    if (optarg) {
+                        numberOfCalls = atoi(optarg);
+                        printf("Measuring time for %d executions.\n", numberOfCalls);
+                    } else {
+                        printf("Measuring time for 1 execution.\n");
+                    }
+                } else {
+                    fprintf(stderr, "Only one B option allowed!\n");
+                    return 1;
+                }
+                break;
+            case 'a':
+                if (a == NULL) {
+                    a = optarg;
+                    printf("Matrix a: %s\n", a);
+                } else {
+                    fprintf(stderr, "Only one a option allowed!\n");
+                    return 1;
+                }
+                break;
+            case 'b':
+                if (b == NULL) {
+                    b = optarg;
+                    printf("Matrix b: %s\n", b);
+                } else {
+                    fprintf(stderr, "Only one b option allowed!\n");
+                    return 1;
+                }
+                break;
+            case 'o':
+                if (o == NULL) {
+                    o = optarg;
+                    printf("Output file: %s\n", o);
+                } else {
+                    fprintf(stderr, "Only one o option allowed!\n");
+                    return 1;
+                }
+                break;
+            case 'h':
+                printHelpMessage();
+                return 0;
+            default:
+                printHelpMessage();
+                return 1;
+        }
+    }
+    if (a == NULL || b == NULL || o == NULL) {
+        fprintf(stderr,"Options a, b and o required!");
+        return 1;
+    }
+
+    //testing
+    EllToTextFile(generateRandomELL(5, 1000, 1000, 0.5), a);
+    EllToTextFile(generateRandomELL(5, 1000, 1000, 0.5), b);
+
+    ELLMatrix* ellMatrixa = textFileToEll(a);
+    ELLMatrix* ellMatrixb = textFileToEll(b);
+    if (ellMatrixa == NULL || ellMatrixb == NULL) return 1;
+    ELLMatrix* output = malloc(sizeof(ELLMatrix));
+    if (output == NULL) {
+        fprintf(stderr, "Memory allocation failed!");
+    }
+    struct timespec start, end;
+    double sum = 0.0;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for (int i = 0; i < numberOfCalls; ++i) {
+        matr_mult_ellpack_v6(ellMatrixa, ellMatrixb, output);
+        //matr_mult_ellpack_v4(ellMatrixa, ellMatrixb, output);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    sum += (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+
+    if (time == 1) {
+        printf("Execution of %d function call(s) took %f seconds.\nAverage time: %f\n", numberOfCalls, sum, sum/numberOfCalls);
+    }
+    EllToTextFile(output, o);
+    freeELL(ellMatrixa);
+    freeELL(ellMatrixb);
+    freeELL(output);
+    return 0;
 }
