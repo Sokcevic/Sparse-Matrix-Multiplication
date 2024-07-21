@@ -2,7 +2,6 @@
 #include "matrix.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <tmmintrin.h>
 #include <getopt.h>
 #include "Parser.h"
 #include <time.h>
@@ -10,11 +9,21 @@
 
 //Ellpack parallel
 void matr_mult_ellpack(const void *a, const void *b, void *result) {
+
     // Cast to structure
     ELLMatrix *matrix_a = transpose((ELLMatrix *)a);
     ELLMatrix *matrix_b = (ELLMatrix *)b;
 
     if (matrix_a == NULL) {
+        return;
+    }
+    if (matrix_a->nonZero == 0 || matrix_b->nonZero == 0) {
+        ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, 0);
+        freeELL(matrix_a);
+        if (res) {
+            *((ELLMatrix*) result) = *res;
+            free(res);
+        }
         return;
     }
 
@@ -111,6 +120,16 @@ void matr_mult_ellpack_V1(const void *a, const void *b, void *result) {
         return;
     }
 
+    if (matrix_a->nonZero == 0 || matrix_b->nonZero == 0) {
+        ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, 0);
+        freeELL(matrix_a);
+        if (res) {
+            *((ELLMatrix*) result) = *res;
+            free(res);
+        }
+        return;
+    }
+
   uint64_t maxNonZero = 0;
   for (uint64_t i = 0; i < matrix_b->cols; i++) {
     uint64_t nonZero = 0;
@@ -197,6 +216,16 @@ void matr_mult_ellpack_V2(const void *a, const void *b, void *result) {
   ELLMatrix *matrix_b = transpose((ELLMatrix *)b);
 
     if (matrix_b == NULL) {
+        return;
+    }
+
+    if (matrix_a->nonZero == 0 || matrix_b->nonZero == 0) {
+        ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, 0);
+        freeELL(matrix_b);
+        if (res) {
+            *((ELLMatrix*) result) = *res;
+            free(res);
+        }
         return;
     }
 
@@ -336,14 +365,14 @@ int main(int argc, char *argv[]) {
                         fprintf(stderr, "Size and nonZero required for -t\n");
                         return EXIT_FAILURE;
                     } else {
-                        size = atoi(firstArg);
+                        size = atoll(firstArg);
                     }
                     char* secondArg = strtok(NULL, ",");
                     if (secondArg == NULL) {
                         fprintf(stderr, "Size and nonZero required for -t\n");
                         return EXIT_FAILURE;
                     } else {
-                        nonZero = atoi(secondArg);
+                        nonZero = atoll(secondArg);
                         if (nonZero > size - 1) {
                             fprintf(stderr, "NonZero has to be between 0 and size - 1!\n");
                             return EXIT_FAILURE;
