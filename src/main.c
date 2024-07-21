@@ -2,21 +2,29 @@
 #include "matrix.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <tmmintrin.h>
 #include <getopt.h>
 #include "Parser.h"
 #include <time.h>
 #include <emmintrin.h>
 
 //Ellpack parallel
-void matr_mult_ellpack_v0(const void *a, const void *b, void *result) {
+void matr_mult_ellpack(const void *a, const void *b, void *result) {
+
     // Cast to structure
     ELLMatrix *matrix_a = transpose((ELLMatrix *)a);
     ELLMatrix *matrix_b = (ELLMatrix *)b;
 
-    // Check if multiplication is possible
-    if (matrix_a->rows != matrix_b->rows) {
-        return; // Not allowed TODO: Error Handling
+    if (matrix_a == NULL) {
+        return;
+    }
+    if (matrix_a->nonZero == 0 || matrix_b->nonZero == 0) {
+        ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, 0);
+        freeELL(matrix_a);
+        if (res) {
+            *((ELLMatrix*) result) = *res;
+            free(res);
+        }
+        return;
     }
 
     uint64_t maxNonZero = 0;
@@ -103,15 +111,24 @@ void matr_mult_ellpack_v0(const void *a, const void *b, void *result) {
 }
 
 // Ellpack normal
-void matr_mult_ellpack_v1(const void *a, const void *b, void *result) {
+void matr_mult_ellpack_V1(const void *a, const void *b, void *result) {
   // Cast to structure
   ELLMatrix *matrix_a = transpose((ELLMatrix *)a);
   ELLMatrix *matrix_b = (ELLMatrix *)b;
 
-  // Check if multiplication is possible
-  if (matrix_a->rows != matrix_b->rows) {
-    return; // Not allowed TODO: Error Handling
-  }
+    if (matrix_a == NULL) {
+        return;
+    }
+
+    if (matrix_a->nonZero == 0 || matrix_b->nonZero == 0) {
+        ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, 0);
+        freeELL(matrix_a);
+        if (res) {
+            *((ELLMatrix*) result) = *res;
+            free(res);
+        }
+        return;
+    }
 
   uint64_t maxNonZero = 0;
   for (uint64_t i = 0; i < matrix_b->cols; i++) {
@@ -193,16 +210,24 @@ void matr_mult_ellpack_v1(const void *a, const void *b, void *result) {
 }
 
 // normale MatMul SIMD
-void matr_mult_ellpack_v2(const void *a, const void *b, void *result) {
+void matr_mult_ellpack_V2(const void *a, const void *b, void *result) {
   // Cast to structure
   ELLMatrix *matrix_a = (ELLMatrix *)a;
   ELLMatrix *matrix_b = transpose((ELLMatrix *)b);
 
-  // Check if multiplication is possible
-  if (matrix_a->cols != matrix_b->cols) {
-    freeELL(matrix_b);
-    return; // Not allowed
-  }
+    if (matrix_b == NULL) {
+        return;
+    }
+
+    if (matrix_a->nonZero == 0 || matrix_b->nonZero == 0) {
+        ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, 0);
+        freeELL(matrix_b);
+        if (res) {
+            *((ELLMatrix*) result) = *res;
+            free(res);
+        }
+        return;
+    }
 
   // initialize result
   Matrix *ma = fromELL(matrix_a);
@@ -243,12 +268,14 @@ void matr_mult_ellpack_v2(const void *a, const void *b, void *result) {
 
 void printHelpMessage() {
     printf("Help Message\n"
-           "-a <filename> : filename of Matrix a (required)\n"
-           "-b <filename> : filename of Matrix b (required)\n"
+           "-a <filename> : filename of matrix a (required)\n"
+           "-b <filename> : filename of matrix b (required)\n"
            "-o <filename> : output-file (required)\n"
-           "-V <Number> : Version to be used. Default: 0\n"
-           "-B<Number> : Measure time for <Number> of executions. Default: 1\n"
-           "-h/--help : Help Message\n");
+           "-V <number> : Version to be used. Default: 0\n"
+           "-B<number> : Measure time for <Number> of executions. Default: 1\n"
+           "-t <size>,<nonZero> : Multiply two random quadratic matrices with given size and maximum amount of <nonZero> values unequal to zero per column (-a, -b and -o not required)\n"
+           "-h/--help : Help Message\n"
+           );
 }
 
 int main(int argc, char *argv[]) {
@@ -263,7 +290,10 @@ int main(int argc, char *argv[]) {
     char* a = NULL;
     char* b = NULL;
     char* o = NULL;
-    while ((option = getopt_long(argc, argv, "hV:B::a:b:o:", long_options, &optionIndex)) != -1) {
+    int test = 0;
+    uint64_t size;
+    uint64_t nonZero;
+    while ((option = getopt_long(argc, argv, "hV:B::a:b:o:t:", long_options, &optionIndex)) != -1) {
         switch (option) {
             case 'V':
                 if (implementation == 0) {
@@ -283,7 +313,12 @@ int main(int argc, char *argv[]) {
                     time = 1;
                     if (optarg) {
                         numberOfCalls = atoi(optarg);
-                        printf("Measuring time for %d executions.\n", numberOfCalls);
+                        if (numberOfCalls == 0) {
+                            numberOfCalls = 1;
+                            printf("Measuring time for 1 execution.\n");
+                        } else {
+                            printf("Measuring time for %d executions.\n", numberOfCalls);
+                        }
                     } else {
                         printf("Measuring time for 1 execution.\n");
                     }
@@ -322,35 +357,92 @@ int main(int argc, char *argv[]) {
             case 'h':
                 printHelpMessage();
                 return EXIT_SUCCESS;
+            case 't':
+                if (test == 0) {
+                    test = 1;
+                    char* firstArg = strtok(optarg, ",");
+                    if (firstArg == NULL) {
+                        fprintf(stderr, "Size and nonZero required for -t\n");
+                        return EXIT_FAILURE;
+                    } else {
+                        size = atoll(firstArg);
+                    }
+                    char* secondArg = strtok(NULL, ",");
+                    if (secondArg == NULL) {
+                        fprintf(stderr, "Size and nonZero required for -t\n");
+                        return EXIT_FAILURE;
+                    } else {
+                        nonZero = atoll(secondArg);
+                        if (nonZero > size - 1) {
+                            fprintf(stderr, "NonZero has to be between 0 and size - 1!\n");
+                            return EXIT_FAILURE;
+                        }
+                    }
+                    printf("Multiplication of two random matrices with size %lu and nonZero %lu\n", size, nonZero);
+                } else {
+                    fprintf(stderr, "Only one t option allowed!\n");
+                    return EXIT_FAILURE;
+                }
+                break;
             default:
                 printHelpMessage();
                 return EXIT_FAILURE;
         }
     }
-    if (a == NULL || b == NULL || o == NULL) {
-        fprintf(stderr,"Options a, b and o required!");
-        return 1;
+
+    ELLMatrix* ellMatrixa;
+    ELLMatrix* ellMatrixb;
+
+    if (test == 0) {
+        if (a == NULL || b == NULL || o == NULL) {
+            fprintf(stderr, "Options a, b and o required!\n");
+            return EXIT_FAILURE;
+        }
+
+        ellMatrixa = textFileToEll(a);
+        ellMatrixb = textFileToEll(b);
+
+    } else {
+        ellMatrixa = generateRandomELL(nonZero, size, size, 0.5F);
+        ellMatrixb = generateRandomELL(nonZero, size, size, 0.5F);
     }
 
-    ELLMatrix* ellMatrixa = textFileToEll(a);
-    ELLMatrix* ellMatrixb = textFileToEll(b);
-    if (ellMatrixa == NULL || ellMatrixb == NULL) return 1;
-    ELLMatrix* output = malloc(sizeof(ELLMatrix));
+    if (ellMatrixa == NULL || ellMatrixb == NULL) {
+        if (ellMatrixa != NULL) {
+            freeELL(ellMatrixa);
+        } else {
+            freeELL(ellMatrixb);
+        }
+        return EXIT_FAILURE;
+    }
+
+    // Check if multiplication is possible
+    if (ellMatrixa->cols != ellMatrixb->cols) {
+        fprintf(stderr, "Cannot multiply a matrix with %llu columns by a matrix with %llu rows\n", ellMatrixa->rows, ellMatrixb->rows);
+        freeELL(ellMatrixa);
+        freeELL(ellMatrixb);
+        return EXIT_FAILURE;
+    }
+
+    ELLMatrix* output = calloc(1, sizeof(ELLMatrix));
     if (output == NULL) {
-        fprintf(stderr, "Memory allocation failed!");
+        fprintf(stderr, "Memory allocation failed!\n");
+        freeELL(ellMatrixa);
+        freeELL(ellMatrixb);
+        return EXIT_FAILURE;
     }
 
     void (*f)(const void *, const void *, void *);
 
     switch (implementation) {
         case 0:
-            f = &matr_mult_ellpack_v0;
+            f = &matr_mult_ellpack;
             break;
         case 1:
-            f = &matr_mult_ellpack_v1;
+            f = &matr_mult_ellpack_V1;
             break;
         case 2:
-            f = &matr_mult_ellpack_v2;
+            f = &matr_mult_ellpack_V2;
             break;
     }
 
@@ -358,14 +450,22 @@ int main(int argc, char *argv[]) {
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (int i = 0; i < numberOfCalls; ++i) {
         f(ellMatrixa, ellMatrixb, output);
+        if (output->cols == 0) {
+            freeELL(ellMatrixa);
+            freeELL(ellMatrixb);
+            free(output);
+            return EXIT_FAILURE;
+        }
     }
     clock_gettime(CLOCK_MONOTONIC, &end);
     double sum = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 
     if (time == 1) {
-        printf("Execution of %d function call(s) took %f seconds.\nAverage time: %f\n", numberOfCalls, sum, sum/numberOfCalls);
+        printf("Execution of %d function call(s) took %f seconds.\nAverage time: %f seconds\n", numberOfCalls, sum, sum/numberOfCalls);
     }
-    EllToTextFile(output, o);
+    if (test == 0) {
+        EllToTextFile(output, o);
+    }
     freeELL(ellMatrixa);
     freeELL(ellMatrixb);
     freeELL(output);

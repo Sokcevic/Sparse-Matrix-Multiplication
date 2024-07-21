@@ -6,21 +6,20 @@ ELLMatrix* textFileToEll(char* filename) {
     if (file == NULL) return NULL;
     if (feof(file)) {
         fclose(file);
-        printf("Could not open file %s", filename);
+        fprintf(stderr, "Could not open file %s\n", filename);
         return NULL;
     }
     uint64_t rows;
     uint64_t cols;
     uint64_t nonZero;
-    fscanf(file, "%lu,%lu,%lu\n", &rows, &cols, &nonZero);
-    if (!rows || !cols || !nonZero) {
+    if (fscanf(file, "%lu,%lu,%lu\n", &rows, &cols, &nonZero) != 3) {
         fclose(file);
-        printf("Format of first line was wrong");
+        fprintf(stderr, "Format of first line was wrong\n");
         return NULL;
     }
     if (rows == 0 || cols == 0) {
         fclose(file);
-        printf("Invalid arguments. No matrix with 0 rows or 0 columns allowed");
+        fprintf(stderr, "Invalid arguments. No matrix with 0 rows or 0 columns allowed\n");
         return NULL;
     }
     uint64_t size = cols * nonZero;
@@ -29,78 +28,78 @@ ELLMatrix* textFileToEll(char* filename) {
         fclose(file);
         return NULL;
     }
-
-    for (uint64_t i = 0; i < size - 1; i++) {
-        char peek = fgetc(file);
-        if (peek == EOF || peek == '\n') {
-            fclose(file);
-            freeELL(result);
-            printf("Values array too short!");
-            return NULL;
-        }
-        if (peek == '*') {
-            fgetc(file);
-        } else {
-            ungetc(peek, file);
-            fscanf(file, "%f,", &(result->values[i]));
-        }
-    }
-    char lastChar = fgetc(file);
-    if (lastChar == EOF) {
-        fclose(file);
-        freeELL(result);
-        printf("Values array too short!");
-        return NULL;
-    }
-    if (lastChar != '*') {
-        ungetc(lastChar, file);
-        fscanf(file, "%f", &(result->values[size - 1]));
-    }
-
-    fgetc(file);
-
-    uint64_t lastIndex;
-    for (uint64_t i = 0; i < size - 1; i++) {
-        if (i % nonZero == 0) lastIndex = 0;
-        char peek = fgetc(file);
-        if (peek == EOF) {
-            fclose(file);
-            freeELL(result);
-            printf("Indices array too short!");
-            return NULL;
-        }
-        if (peek == '*') {
-            fgetc(file);
-        } else {
-            ungetc(peek, file);
-            fscanf(file, "%lu,", &(result->indicies[i]));
-            if (result->indicies[i] < lastIndex || result->indicies[i] >= rows) {
+    if (size != 0) {
+        for (uint64_t i = 0; i < size - 1; i++) {
+            char peek = fgetc(file);
+            if (peek == EOF || peek == '\n') {
                 fclose(file);
                 freeELL(result);
-                printf("Wrong indices!");
+                fprintf(stderr, "Values array too short!\n");
                 return NULL;
             }
-            lastIndex = result->indicies[i];
+            if (peek == '*') {
+                fgetc(file);
+            } else {
+                ungetc(peek, file);
+                fscanf(file, "%f,", &(result->values[i]));
+            }
         }
-    }
-    lastChar = fgetc(file);
-    if (lastChar == EOF) {
-        fclose(file);
-        freeELL(result);
-        printf("Indices array too short!");
-        return NULL;
-    }
-    if (lastChar != '*') {
-        ungetc(lastChar, file);
-        fscanf(file, "%lu", &(result->indicies[size - 1]));
-        if (result->indicies[size - 1] < lastIndex || result->indicies[size - 1] >= rows) {
+        char lastChar = fgetc(file);
+        if (lastChar == EOF) {
             fclose(file);
             freeELL(result);
-            printf("Wrong indices!");
+            fprintf(stderr, "Values array too short!\n");
             return NULL;
         }
-    }
+        if (lastChar != '*') {
+            ungetc(lastChar, file);
+            fscanf(file, "%f", &(result->values[size - 1]));
+        }
 
+        fgetc(file);
+
+        uint64_t lastIndex;
+        for (uint64_t i = 0; i < size - 1; i++) {
+            if (i % nonZero == 0) lastIndex = 0;
+            char peek = fgetc(file);
+            if (peek == EOF) {
+                fclose(file);
+                freeELL(result);
+                fprintf(stderr, "Indices array too short!\n");
+                return NULL;
+            }
+            if (peek == '*') {
+                fgetc(file);
+            } else {
+                ungetc(peek, file);
+                fscanf(file, "%lu,", &(result->indicies[i]));
+                if (result->indicies[i] < lastIndex || result->indicies[i] >= rows) {
+                    fclose(file);
+                    freeELL(result);
+                    fprintf(stderr, "Wrong indices!\n");
+                    return NULL;
+                }
+                lastIndex = result->indicies[i];
+            }
+        }
+        lastChar = fgetc(file);
+        if (lastChar == EOF) {
+            fclose(file);
+            freeELL(result);
+            fprintf(stderr, "Indices array too short!\n");
+            return NULL;
+        }
+        if (lastChar != '*') {
+            ungetc(lastChar, file);
+            fscanf(file, "%lu", &(result->indicies[size - 1]));
+            if (result->indicies[size - 1] < lastIndex || result->indicies[size - 1] >= rows) {
+                fclose(file);
+                freeELL(result);
+                fprintf(stderr, "Wrong indices!\n");
+                return NULL;
+            }
+        }
+    }
     fclose(file);
     return result;
 }
@@ -108,11 +107,16 @@ ELLMatrix* textFileToEll(char* filename) {
 void EllToTextFile(ELLMatrix* ell, char* filename) {
     FILE* file = fopen(filename, "w");
     if (file == NULL) {
-        printf("Could not open file %s", filename);
+        fprintf(stderr, "Could not open file %s\n", filename);
         return;
     }
-    fprintf(file, "%lu,%lu,%lu\n", ell->rows, ell->cols, ell->nonZero);
+    fprintf(file, "%lu,%lu,%lu", ell->rows, ell->cols, ell->nonZero);
     uint64_t size = ell->cols * ell->nonZero;
+    if (size == 0) {
+        fclose(file);
+        return;
+    }
+    fprintf(file, "\n");
     for (uint64_t i = 0; i < size - 1; i++) {
         float next = ell->values[i];
         if (next == 0.0) {

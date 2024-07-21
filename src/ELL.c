@@ -9,7 +9,8 @@
 ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
     ELLMatrix *result = malloc(sizeof(ELLMatrix));
     if (!result) {
-        return NULL; // TODO: Error handling
+        fprintf(stderr, "Memory allocation failed!\n");
+        return NULL;
     }
     result->rows = rows;
     result->cols = cols;
@@ -22,13 +23,15 @@ ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
     result->indicies = calloc(result->cols * result->nonZero, sizeof(uint64_t));
     if (!result->indicies) {
         free(result);
-        return NULL; // TODO: Error Handling
+        fprintf(stderr, "Memory allocation failed!\n");
+        return NULL;
     }
     result->values = calloc(result->cols * result->nonZero, sizeof(float));
     if (!result->values) {
         free(result->indicies);
         free(result);
-        return NULL; // TODO: Error Handling
+        fprintf(stderr, "Memory allocation failed!\n");
+        return NULL;
     }
     return result;
 }
@@ -47,7 +50,8 @@ ELLMatrix *toELL(Matrix *matrix) {
 
     result = (ELLMatrix *) malloc(sizeof(ELLMatrix));
     if (!result) {
-        return NULL; // TODO: replace
+        fprintf(stderr, "Memory allocation failed!\n");
+        return NULL;
     }
     result->rows = m;
     result->cols = n;
@@ -77,13 +81,15 @@ ELLMatrix *toELL(Matrix *matrix) {
     result->values = (float *) calloc(size, sizeof(float));
     if (!result->values) {
         free(result);
-        return NULL; // TODO: Error handling
+        fprintf(stderr, "Memory allocation failed!\n");
+        return NULL;
     }
     result->indicies = (uint64_t *) calloc(size, sizeof(uint64_t));
     if (!result->indicies) {
         free(result->values);
         free(result);
-        return NULL; // TODO: Error handling
+        fprintf(stderr, "Memory allocation failed!\n");
+        return NULL;
     }
 
     uint64_t elements_added = 0;
@@ -125,9 +131,13 @@ Matrix *fromELL(ELLMatrix *m) {
 
 
 ELLMatrix *transpose(ELLMatrix *m) {
-    uint64_t *occurrences = (uint64_t *) calloc(m->rows, sizeof(uint64_t));
-    if (!occurrences) {
-        return NULL; // TODO: Error handling
+    uint64_t *occurrences = NULL;
+    if (m->nonZero != 0) {
+        occurrences = (uint64_t *) calloc(m->rows, sizeof(uint64_t));
+        if (!occurrences) {
+            fprintf(stderr, "Memory allocation failed!\n");
+            return NULL;
+        }
     }
     uint64_t max_row_non_zero = 0;
     for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
@@ -141,8 +151,9 @@ ELLMatrix *transpose(ELLMatrix *m) {
     }
     ELLMatrix *result = createELL(m->cols, m->rows, max_row_non_zero);
     if (!result) {
+        if (occurrences)
         free(occurrences);
-        return NULL; // TODO: Error Handling
+        return NULL;
     }
     for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
         uint64_t index = max_row_non_zero * m->indicies[i];
@@ -153,6 +164,7 @@ ELLMatrix *transpose(ELLMatrix *m) {
         result->values[index] = m->values[i];
         result->indicies[index] = batch;
     }
+    if (occurrences != NULL)
     free(occurrences);
     return result;
 }
@@ -188,8 +200,8 @@ void printEll(ELLMatrix *m) {
 }
 
 void freeELL(ELLMatrix *ell) {
-    free(ell->indicies);
-    free(ell->values);
+    if (ell->indicies) free(ell->indicies);
+    if(ell->values) free(ell->values);
     free(ell);
 }
 
@@ -199,6 +211,9 @@ ELLMatrix *generateRandomELL(uint64_t nonZero, uint64_t rows, uint64_t cols,
     if (!result) {
         return NULL;
     }
+    if (nonZero == 0) {
+        return result;
+    }
     for (uint64_t i = 0; i < cols; i++) {
         uint64_t dc = 0;
         if ((float)rand() / (float)RAND_MAX < dcRate) {
@@ -206,7 +221,7 @@ ELLMatrix *generateRandomELL(uint64_t nonZero, uint64_t rows, uint64_t cols,
         }
         for (uint64_t j = 0; j < nonZero - dc; j++) {
             if (j >= cols * nonZero) {
-                printf(" ");
+                break;
             }
             result->values[i * nonZero + j] =
                     (1000.0F * ((float)rand() / (float)RAND_MAX)) +
