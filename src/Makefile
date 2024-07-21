@@ -27,6 +27,7 @@ SOURCES := $(MAIN) $(ASSIGNMENT)
 CUDA_SOURCES := $(CUDA_MAIN) cuda/$(ASSIGNMENT_CUDA)
 TARGET := $(basename $(ASSIGNMENT))
 CUDA_TARGET := $(basename $(ASSIGNMENT_CUDA))
+
 # Default to release build for both app and library
 all: debug
 
@@ -38,22 +39,18 @@ debug: $(TARGET)
 release: CFLAGS += -O4
 release: $(TARGET)
 
-# recipe for building the program
-$(TARGET): $(SOURCES)
-	$(CC) $(CFLAGS) -o $@ $(SOURCES)
+# CUDA build
+cuda:
+	@test -n "$(NVCC)" || (echo "NVCC not installed. Exiting."; exit 1)
+	$(NVCC) $(CFLAGS) -o $(CUDA_TARGET) $(CUDA_SOURCES)
 
 # clean up
 clean:
 	rm -f $(TARGET) 
 
-cuda: CFLAGS += $(CUDA_CFLAGS)
-cuda: $(CUDA_TARGET)
-
-$(CUDA_TARGET): $(CUDA_SOURCES)
-ifeq ($(strip $(NVCC)),)
-	$(error NVCC is not available. Exiting.)
-else
-	$(NVCC) $(CFLAGS) -o $@ $(CUDA_SOURCES)
-endif
+# recipe for building the program
+$(TARGET): $(SOURCES)
+	$(CC) $(CFLAGS) -o $@ $(SOURCES)
 
 .PHONY: all debug release clean cuda
+HONY: all debug release clean cuda
