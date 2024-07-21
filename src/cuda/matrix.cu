@@ -5,8 +5,16 @@
 #include <stdlib.h>
 
 __host__ void freeFromDevice(Matrix *m) {
-  cudaFree(m->data);
+  Matrix *c = (Matrix*)calloc(1, sizeof(Matrix));
+  cudaError_t err = cudaMemcpy(c, m, sizeof(Matrix), cudaMemcpyDeviceToHost);
+  if (err != cudaSuccess) {
+    fprintf(stderr, "Error while copying from device: %s\n", cudaGetErrorString(err));
+    free(c);
+    return;
+  }
+  cudaFree(c->data);
   cudaFree(m);
+  free(c);
 }
 
 __host__ Matrix *toDevice(Matrix *m) {

@@ -9,6 +9,7 @@
 #include <ctime>
 #include <getopt.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <tmmintrin.h>
 
@@ -343,32 +344,36 @@ __global__ void ELLMul(ELLMatrix *a, ELLMatrix *b, ELLMatrix *c) {
   }
 }
 __host__ void matr_mult_ellpack_V3(const void *a, const void *b, void *result) {
+  if (((ELLMatrix *)a)->nonZero == 0 || ((ELLMatrix *)b)->nonZero == 0) {
+    ELLMatrix *res =
+        createELL(((ELLMatrix *)a)->cols, ((ELLMatrix *)b)->cols, 0);
+    if (res) {
+      *((ELLMatrix *)result) = *res;
+      free(res);
+    }
+    return;
+  }
+
   // Cast to structure
   ELLMatrix *matrix_a = transpose((ELLMatrix *)a);
   cudaDeviceSynchronize();
   if (!matrix_a) {
-    fprintf(stderr, "Could not allocate memory!");
+    fprintf(stderr, "Could not allocate memory!\n");
     return;
   }
 
   ELLMatrix *matrix_b = (ELLMatrix *)b;
 
-  // Check if multiplication is possible
-  if (matrix_a->rows != matrix_b->rows) {
-    fprintf(stderr, "Matrices have the wrong dimension!");
-    return;
-  }
-
   ELLMatrix *d_a = toDevice(matrix_a);
   ELLMatrix *d_b = toDevice(matrix_b);
   if (!d_a || !d_b) {
-    fprintf(stderr, "Could not allocate memory on device!");
+    fprintf(stderr, "Could not allocate memory on device!\n");
     return;
   }
   uint64_t *d_nonZero;
   cudaError_t err = cudaMalloc((void **)&d_nonZero, sizeof(uint64_t));
   if (err != cudaSuccess) {
-    fprintf(stderr, "Encountered a cuda error: %s", cudaGetErrorString(err));
+    fprintf(stderr, "Encountered a cuda error: %s \n", cudaGetErrorString(err));
     return;
   }
 
@@ -381,13 +386,13 @@ __host__ void matr_mult_ellpack_V3(const void *a, const void *b, void *result) {
   err = cudaMemcpy(&maxNonZero, d_nonZero, sizeof(uint64_t),
                    cudaMemcpyDeviceToHost);
   if (err != cudaSuccess) {
-    fprintf(stderr, "Encountered a cuda error: %s", cudaGetErrorString(err));
+    fprintf(stderr, "Encountered a cuda error: %s\n", cudaGetErrorString(err));
     return;
   }
 
   err = cudaFree(d_nonZero);
   if (err != cudaSuccess) {
-    fprintf(stderr, "Encountered a cuda error: %s", cudaGetErrorString(err));
+    fprintf(stderr, "Encountered a cuda error: %s\n", cudaGetErrorString(err));
     return;
   }
 
@@ -407,7 +412,6 @@ __host__ void matr_mult_ellpack_V3(const void *a, const void *b, void *result) {
 
   free(res);
   freeELL(matrix_a);
-  freeELL(matrix_b);
   cudaFree(d_nonZero);
   freeFromDevice(d_res);
   freeFromDevice(d_a);
@@ -415,6 +419,16 @@ __host__ void matr_mult_ellpack_V3(const void *a, const void *b, void *result) {
 }
 
 __host__ void matr_mult_ellpack_V4(const void *a, const void *b, void *result) {
+  if (((ELLMatrix *)a)->nonZero == 0 || ((ELLMatrix *)b)->nonZero == 0) {
+    ELLMatrix *res =
+        createELL(((ELLMatrix *)a)->cols, ((ELLMatrix *)b)->cols, 0);
+    if (res) {
+      *((ELLMatrix *)result) = *res;
+      free(res);
+    }
+    return;
+  }
+
   Matrix *matrix_a = fromELL((ELLMatrix *)a);
   Matrix *matrix_b = fromELL((ELLMatrix *)b);
   Matrix *c = createMatrix(matrix_a->rows, matrix_b->cols);
@@ -473,8 +487,8 @@ int main(int argc, char *argv[]) {
     case 'V':
       if (implementation == 0) {
         implementation = atoi(optarg);
-        if (implementation < 0 || implementation > 2) {
-          fprintf(stderr, "Invalid version number. Only 0-2 allowed!");
+        if (implementation < 0 || implementation > 4) {
+          fprintf(stderr, "Invalid version number. Only 0-4 allowed!");
           return EXIT_FAILURE;
         }
         printf("Program version: %d\n", implementation);
@@ -587,7 +601,8 @@ int main(int argc, char *argv[]) {
   if (ellMatrixa == NULL || ellMatrixb == NULL) {
     if (ellMatrixa != NULL) {
       freeELL(ellMatrixa);
-    } else {
+    }
+    if (ellMatrixb != NULL) {
       freeELL(ellMatrixb);
     }
     return EXIT_FAILURE;
@@ -636,7 +651,7 @@ int main(int argc, char *argv[]) {
   clock_gettime(CLOCK_MONOTONIC, &start);
   for (int i = 0; i < numberOfCalls; ++i) {
     f(ellMatrixa, ellMatrixb, output);
-    if (output->cols == 0) {
+    if (output->cols == 0) { // check if multiplication did not work
       freeELL(ellMatrixa);
       freeELL(ellMatrixb);
       free(output);

@@ -163,9 +163,17 @@ __global__ void countNonZero(Matrix *matrix, uint64_t *nonZero) {
 }
 
 __host__ void freeFromDevice(ELLMatrix *d_matrix) {
-  cudaFree(d_matrix->indicies);
-  cudaFree(d_matrix->values);
+  ELLMatrix *m = (ELLMatrix *)calloc(1, sizeof(ELLMatrix));
+  if (!m) {
+    fprintf(stderr, "Error allocating memory!");
+    return;
+  }
+  cudaError_t err =
+      cudaMemcpy(m, d_matrix, sizeof(ELLMatrix), cudaMemcpyDeviceToHost);
+  cudaFree(m->indicies);
+  cudaFree(m->values);
   cudaFree(d_matrix);
+  free(m);
 }
 __host__ ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
   ELLMatrix *result = (ELLMatrix *)malloc(sizeof(ELLMatrix));
@@ -200,10 +208,15 @@ __host__ ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
 }
 
 __host__ ELLMatrix *transpose(ELLMatrix *m) {
-  uint64_t *occurrences = (uint64_t *)calloc(m->rows, sizeof(uint64_t));
-  if (!occurrences) {
-    return NULL; // TODO: Error handling
+  uint64_t *occurrences = NULL;
+  if (m->nonZero != 0) {
+    occurrences = (uint64_t *)calloc(m->rows, sizeof(uint64_t));
+    if (!occurrences) {
+      fprintf(stderr, "Memory allocation failed!\n");
+      return NULL;
+    }
   }
+  // calculate nonZero of transposed matrix
   uint64_t max_row_non_zero = 0;
   for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
     if (m->values[i] != 0) {
@@ -214,12 +227,13 @@ __host__ ELLMatrix *transpose(ELLMatrix *m) {
       }
     }
   }
-  ELLMatrix *result =
-      (ELLMatrix *)createELL(m->cols, m->rows, max_row_non_zero);
+  ELLMatrix *result = createELL(m->cols, m->rows, max_row_non_zero);
   if (!result) {
-    free(occurrences);
-    return NULL; // TODO: Error Handling
+    if (occurrences)
+      free(occurrences);
+    return NULL;
   }
+  // write values and indices to transposed matrix
   for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
     uint64_t index = max_row_non_zero * m->indicies[i];
     uint64_t batch = i / m->nonZero;
@@ -230,35 +244,11 @@ __host__ ELLMatrix *transpose(ELLMatrix *m) {
     result->values[index] = m->values[i];
     result->indicies[index] = batch;
   }
-  free(occurrences);
+  if (occurrences != NULL)
+    free(occurrences);
   return result;
 }
 
-__global__ void fillELL(ELLMatrix *result, Matrix *matrix) {
-  uint64_t col = blockIdx.x * blockDim.x + threadIdx.x;
-  if (col < matrix->cols) {
-    uint64_t elements_added = col * result->nonZero;
-    uint64_t added = 0;
-    uint64_t dc = 0;
-    for (uint64_t row = 0; row < result->rows; row++) {
-      if (matrix->data[row * matrix->cols + col] != 0) {
-        result->values[elements_added] = matrix->data[row * matrix->cols + col];
-        result->indicies[elements_added] = row;
-        elements_added++;
-        added++;
-        if (elements_added % result->nonZero == 0)
-          break;
-      } else {
-        dc = row;
-      }
-    }
-    for (; added < result->nonZero; added++) {
-      result->values[elements_added] = 0;
-      result->indicies[elements_added] = dc;
-      elements_added++;
-    }
-  }
-}
 /**
  *
  * Converts a 2D Matrix into a ELLPACK struct and returns a pointer to the
@@ -395,6 +385,9 @@ __host__ ELLMatrix *generateRandomELL(uint64_t nonZero, uint64_t rows,
   if (!result) {
     return NULL;
   }
+  if (nonZero == 0) {
+    return result;
+  }
   for (uint64_t i = 0; i < cols; i++) {
     uint64_t dc = 0;
     if ((float)rand() / (float)RAND_MAX < dcRate) {
@@ -402,7 +395,7 @@ __host__ ELLMatrix *generateRandomELL(uint64_t nonZero, uint64_t rows,
     }
     for (uint64_t j = 0; j < nonZero - dc; j++) {
       if (j >= cols * nonZero) {
-        printf(" ");
+        break;
       }
       result->values[i * nonZero + j] =
           (1000.0F * ((float)rand() / (float)RAND_MAX)) +
