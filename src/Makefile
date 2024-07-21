@@ -8,7 +8,7 @@ CUDA_MAIN := cuda/ELL.cu cuda/matrix.cu cuda/Parser.cu
 
 # assignment task file
 ASSIGNMENT := main.c
-ASSIGNMENT_CUDA := cuda/main.cu
+ASSIGNMENT_CUDA := main.cu
 
 # Additional flags for the compiler
 CFLAGS := 
@@ -24,7 +24,7 @@ endif
 
 # all source files needed for the program
 SOURCES := $(MAIN) $(ASSIGNMENT)
-CUDA_SOURCES := $(CUDA_MAIN) $(ASSIGNMENT_CUDA)
+CUDA_SOURCES := $(CUDA_MAIN) cuda/$(ASSIGNMENT_CUDA)
 TARGET := $(basename $(ASSIGNMENT))
 CUDA_TARGET := $(basename $(ASSIGNMENT_CUDA))
 # Default to release build for both app and library
