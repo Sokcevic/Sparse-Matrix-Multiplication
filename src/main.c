@@ -418,7 +418,7 @@ int main(int argc, char *argv[]) {
 
     // Check if multiplication is possible
     if (ellMatrixa->cols != ellMatrixb->cols) {
-        fprintf(stderr, "Cannot multiply a matrix with %llu columns by a matrix with %llu rows\n", ellMatrixa->rows, ellMatrixb->rows);
+        fprintf(stderr, "Cannot multiply a matrix with %lu columns by a matrix with %lu rows\n", ellMatrixa->rows, ellMatrixb->rows);
         freeELL(ellMatrixa);
         freeELL(ellMatrixb);
         return EXIT_FAILURE;

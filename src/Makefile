@@ -4,9 +4,11 @@
 
 # entry point for the program and target name
 MAIN := ELL.c matrix.c Parser.c
+CUDA_MAIN := cuda/ELL.cu cuda/matrix.cu cuda/Parser.cu
 
 # assignment task file
 ASSIGNMENT := main.c
+ASSIGNMENT_CUDA := cuda/main.cu
 
 # Additional flags for the compiler
 CFLAGS := 
@@ -14,8 +16,7 @@ CFLAGS :=
 # ---------------------------------------
 # CONFIGURATION END
 # ---------------------------------------
-
-# Determine if clang or gcc is available
+NVCC := $(shell command -v nvcc)
 CC := $(shell command -v gcc || command -v clang)
 ifeq ($(strip $(CC)),)
     $(error Neither clang nor gcc is available. Exiting.)
@@ -23,8 +24,9 @@ endif
 
 # all source files needed for the program
 SOURCES := $(MAIN) $(ASSIGNMENT)
+CUDA_SOURCES := $(CUDA_MAIN) $(ASSIGNMENT_CUDA)
 TARGET := $(basename $(ASSIGNMENT))
-
+CUDA_TARGET := $(basename $(ASSIGNMENT_CUDA))
 # Default to release build for both app and library
 all: debug
 
@@ -42,6 +44,16 @@ $(TARGET): $(SOURCES)
 
 # clean up
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) 
 
-.PHONY: all debug release clean
+cuda: CFLAGS += $(CUDA_CFLAGS)
+cuda: $(CUDA_TARGET)
+
+$(CUDA_TARGET): $(CUDA_SOURCES)
+ifeq ($(strip $(NVCC)),)
+	$(error NVCC is not available. Exiting.)
+else
+	$(NVCC) $(CFLAGS) -o $@ $(CUDA_SOURCES)
+endif
+
+.PHONY: all debug release clean cuda

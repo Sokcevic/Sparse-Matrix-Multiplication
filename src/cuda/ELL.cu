@@ -1,4 +1,5 @@
 #include "ELL.cuh"
+#include "matrix.cuh"
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -166,30 +167,36 @@ __host__ void freeFromDevice(ELLMatrix *d_matrix) {
   cudaFree(d_matrix->values);
   cudaFree(d_matrix);
 }
-__host__ void createELL(uint64_t rows, uint64_t cols, uint64_t nonZero,
-                        ELLMatrix *result) {
+__host__ ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
+  ELLMatrix *result = (ELLMatrix *)malloc(sizeof(ELLMatrix));
+  if (!result) {
+    fprintf(stderr, "Memory allocation failed!\n");
+    return NULL;
+  }
   result->rows = rows;
   result->cols = cols;
   result->nonZero = nonZero;
   if (nonZero == 0) {
     result->indicies = NULL;
     result->values = NULL;
-    return;
+    return result;
   }
   result->indicies =
       (uint64_t *)calloc(result->cols * result->nonZero, sizeof(uint64_t));
   if (!result->indicies) {
     free(result);
-    return; // TODO: Error Handling
+    fprintf(stderr, "Memory allocation failed!\n");
+    return NULL;
   }
   result->values =
       (float *)calloc(result->cols * result->nonZero, sizeof(float));
   if (!result->values) {
     free(result->indicies);
     free(result);
-    return; // TODO: Error Handling
+    fprintf(stderr, "Memory allocation failed!\n");
+    return NULL;
   }
-  return;
+  return result;
 }
 
 __host__ ELLMatrix *transpose(ELLMatrix *m) {
@@ -207,12 +214,8 @@ __host__ ELLMatrix *transpose(ELLMatrix *m) {
       }
     }
   }
-  ELLMatrix *result = (ELLMatrix *)calloc(1, sizeof(ELLMatrix));
-  if (!result) {
-    fprintf(stderr, "Error allocation memory");
-    return NULL;
-  }
-  createELL(m->cols, m->rows, max_row_non_zero, result);
+  ELLMatrix *result =
+      (ELLMatrix *)createELL(m->cols, m->rows, max_row_non_zero);
   if (!result) {
     free(occurrences);
     return NULL; // TODO: Error Handling
@@ -262,79 +265,91 @@ __global__ void fillELL(ELLMatrix *result, Matrix *matrix) {
  * struct
  *
  */
-__host__ void toELL(Matrix *matrix, ELLMatrix *result) {
+ELLMatrix *toELL(Matrix *matrix) {
 
-  result->rows = matrix->rows;
-  result->cols = matrix->cols;
+  ELLMatrix *result; // initialize
+  uint64_t m = matrix->rows;
+  uint64_t n = matrix->cols;
 
-  uint64_t blockSize = 512;
-  uint64_t numBlocks = (matrix->cols + blockSize - 1) / blockSize;
-
-  ELLMatrix *d_result = toDevice(result);
-  Matrix *d_matrix = toDevice(matrix);
-
-  countNonZero<<<numBlocks, blockSize>>>(d_matrix, &d_result->nonZero);
-  cudaError_t err = cudaDeviceSynchronize();
-  if (err != cudaSuccess) {
-    fprintf(stderr, "Error while calculating nonZero elements.");
-    return;
+  result = (ELLMatrix *)malloc(sizeof(ELLMatrix));
+  if (!result) {
+    fprintf(stderr, "Memory allocation failed!\n");
+    return NULL;
   }
+  result->rows = m;
+  result->cols = n;
 
-  err = cudaMemcpy(&result->nonZero, &d_result->nonZero, sizeof(uint64_t),
-                   cudaMemcpyDeviceToHost);
-  if (err != cudaSuccess) {
-    fprintf(stderr, "Error while copying nonZero from Device.");
-    return;
-  }
+  uint64_t nonZero[n];
+  memset(nonZero, 0, sizeof(nonZero));
+  // calculate max number of non Zero values per column
+  for (uint64_t i = 0; i < m; i++) // Use Cache properly
+    for (uint64_t j = 0; j < n; j++)
+      if (matrix->data[i * matrix->cols + j] != 0)
+        nonZero[j]++;
 
-  __uint128_t size = (__uint128_t)result->nonZero * (__uint128_t)result->cols;
+  uint64_t max = 0;
+  for (uint64_t i = 0; i < n; i++)
+    if (nonZero[i] > max)
+      max = nonZero[i];
+
+  result->nonZero = max;
+  __uint128_t size = (__uint128_t)max * (__uint128_t)n;
 
   if (size == 0) {
     result->indicies = NULL;
     result->values = NULL;
-    return;
+    return result;
   }
 
-  result->values = (float *)malloc(size * sizeof(float));
+  result->values = (float *)calloc(size, sizeof(float));
   if (!result->values) {
     free(result);
-    return; // TODO: Error handling
+    fprintf(stderr, "Memory allocation failed!\n");
+    return NULL;
   }
-  result->indicies = (uint64_t *)malloc(size * sizeof(uint64_t));
+  result->indicies = (uint64_t *)calloc(size, sizeof(uint64_t));
   if (!result->indicies) {
     free(result->values);
     free(result);
-    return; // TODO: Error handling
+    fprintf(stderr, "Memory allocation failed!\n");
+    return NULL;
   }
 
-  fillELL<<<numBlocks, blockSize>>>(d_result, d_matrix);
-  cudaMemcpy(result->indicies, d_result->indicies,
-             result->cols * result->nonZero * sizeof(uint64_t),
-             cudaMemcpyDeviceToHost);
-  cudaMemcpy(result->values, d_result->values,
-             result->cols * result->nonZero * sizeof(float),
-             cudaMemcpyDeviceToHost);
-  freeFromDevice(d_result);
-  freeFromDevice(d_matrix);
-
-  return;
-}
-
-__global__ void fromELL(ELLMatrix *m, Matrix *result) {
-  uint64_t idx = blockDim.x * blockIdx.x + threadIdx.x;
-
-  uint64_t totalNonZero = m->cols * m->nonZero;
-
-  if (idx < totalNonZero) {
-    uint64_t col = idx / m->nonZero;
-
-    float value = m->values[idx];
-    uint64_t row = m->indicies[idx];
-
-    if (value != 0) {
-      result->data[row * m->cols + col] = value;
+  uint64_t elements_added = 0;
+  for (uint64_t i = 0; i < n; i++) { // iterate columns
+    uint64_t added = 0;
+    uint64_t dc = 0;
+    for (uint64_t j = 0; j < m; j++) { // iterate rows
+      if (matrix->data[j * matrix->cols + i] != 0) {
+        (result->values)[elements_added] = matrix->data[j * matrix->cols + i];
+        (result->indicies)[elements_added] = j;
+        elements_added++;
+        added++;
+        if (elements_added % (max) == 0)
+          break;
+      } else {
+        dc = j;
+      }
+    }
+    for (; added < max; added++) {
+      (result->values)[elements_added] = 0;
+      (result->indicies)[elements_added] = dc;
+      elements_added++;
     }
   }
+
+  return result;
+}
+
+__host__ Matrix *fromELL(ELLMatrix *m) {
+  Matrix *result = createMatrix(m->rows, m->cols);
+
+  for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
+    if (m->values[i] != 0) {
+      result->data[m->cols * m->indicies[i] + (i / m->nonZero)] = m->values[i];
+    }
+  }
+  return result;
 }
 
 float ellEquals(ELLMatrix *a, ELLMatrix *b) {
@@ -376,12 +391,7 @@ __host__ void freeELL(ELLMatrix *ell) {
 
 __host__ ELLMatrix *generateRandomELL(uint64_t nonZero, uint64_t rows,
                                       uint64_t cols, float dcRate) {
-  ELLMatrix *result = (ELLMatrix *)calloc(1, sizeof(ELLMatrix));
-  if (!result) {
-    fprintf(stderr, "Could not allocate Memory!");
-    return NULL;
-  }
-  createELL(rows, cols, nonZero, result);
+  ELLMatrix *result = (ELLMatrix *)createELL(rows, cols, nonZero);
   if (!result) {
     return NULL;
   }
