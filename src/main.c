@@ -11,12 +11,13 @@
 void matr_mult_ellpack(const void *a, const void *b, void *result) {
 
     // Cast to structure
-    ELLMatrix *matrix_a = transpose((ELLMatrix *)a);
+    ELLMatrix *matrix_a = transpose((ELLMatrix *)a); // transpose to read through columns
     ELLMatrix *matrix_b = (ELLMatrix *)b;
 
     if (matrix_a == NULL) {
         return;
     }
+    //result is empty if a or b is empty
     if (matrix_a->nonZero == 0 || matrix_b->nonZero == 0) {
         ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, 0);
         freeELL(matrix_a);
@@ -27,17 +28,18 @@ void matr_mult_ellpack(const void *a, const void *b, void *result) {
         return;
     }
 
+    //calculate nonZero of result
     uint64_t maxNonZero = 0;
 #pragma omp parallel for
-    for (uint64_t i = 0; i < matrix_b->cols; i++) {
+    for (uint64_t i = 0; i < matrix_b->cols; i++) { // calculate nonZero of each column of result
         uint64_t nonZero = 0;
 #pragma omp parallel for
-        for (uint64_t j = 0; j < matrix_a->cols; j++) {
+        for (uint64_t j = 0; j < matrix_a->cols; j++) { //check if each entry of the ith column of result is 0 or increment nonZero
             uint64_t a_batch_index = j * matrix_a->nonZero;
             uint64_t b_batch_index = i * matrix_b->nonZero;
             float sum = 0;
             while (a_batch_index < (j + 1) * matrix_a->nonZero &&
-                   b_batch_index < (i + 1) * matrix_b->nonZero) {
+                   b_batch_index < (i + 1) * matrix_b->nonZero) { // look for matches in indices of the jth column of matrix_a and the ith column of matrix_b
                 if (matrix_a->values[a_batch_index] == 0 ||
                     matrix_b->values[b_batch_index] == 0) {
                     break;
@@ -70,15 +72,77 @@ void matr_mult_ellpack(const void *a, const void *b, void *result) {
         return;
     }
 
+    //calculate the result
 #pragma omp parallel for
-    for (uint64_t i = 0; i < matrix_b->cols; i++) {
+    for (uint64_t i = 0; i < matrix_b->cols; i++) { // iterate through columns of result
         uint64_t result_index = i * res->nonZero;
-        for (uint64_t j = 0; j < matrix_a->cols; j++) {
+        for (uint64_t j = 0; j < matrix_a->cols; j++) { // iterate through values in ith column
             uint64_t a_batch_index = j * matrix_a->nonZero;
             uint64_t b_batch_index = i * matrix_b->nonZero;
             float sum = 0;
             while (a_batch_index < (j + 1) * matrix_a->nonZero &&
-                   b_batch_index < (i + 1) * matrix_b->nonZero) {
+                   b_batch_index < (i + 1) * matrix_b->nonZero) { // look for matching indices in relevant columns of matrix_a and matrix_b
+                if (matrix_a->values[a_batch_index] == 0 ||
+                    matrix_b->values[b_batch_index] == 0) {
+                    break;
+                }
+                uint64_t a_next_index = matrix_a->indicies[a_batch_index];
+                uint64_t b_next_index = matrix_b->indicies[b_batch_index];
+                if (a_next_index == b_next_index) {
+                    sum += matrix_a->values[a_batch_index] * matrix_b->values[b_batch_index];
+                    a_batch_index++;
+                    b_batch_index++;
+                } else if (a_next_index < b_next_index) {
+                    a_batch_index++;
+                } else {
+                    b_batch_index++;
+                }
+            }
+            if (sum != 0) { // write value
+                res->values[result_index] = sum;
+                res->indicies[result_index] = j;
+                result_index++;
+            }
+        }
+    }
+
+    *((ELLMatrix *)result) = *res;
+
+    free(res);
+    freeELL(matrix_a);
+}
+
+// Ellpack normal
+void matr_mult_ellpack_V1(const void *a, const void *b, void *result) {
+
+    // Cast to structure
+    ELLMatrix *matrix_a = transpose((ELLMatrix *)a); // transpose to read through columns
+    ELLMatrix *matrix_b = (ELLMatrix *)b;
+
+    if (matrix_a == NULL) {
+        return;
+    }
+    //result is empty if a or b is empty
+    if (matrix_a->nonZero == 0 || matrix_b->nonZero == 0) {
+        ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, 0);
+        freeELL(matrix_a);
+        if (res) {
+            *((ELLMatrix*) result) = *res;
+            free(res);
+        }
+        return;
+    }
+
+    //calculate nonZero of result
+    uint64_t maxNonZero = 0;
+    for (uint64_t i = 0; i < matrix_b->cols; i++) { // calculate nonZero of each column of result
+        uint64_t nonZero = 0;
+        for (uint64_t j = 0; j < matrix_a->cols; j++) { //check if each entry of the ith column of result is 0 or increment nonZero
+            uint64_t a_batch_index = j * matrix_a->nonZero;
+            uint64_t b_batch_index = i * matrix_b->nonZero;
+            float sum = 0;
+            while (a_batch_index < (j + 1) * matrix_a->nonZero &&
+                   b_batch_index < (i + 1) * matrix_b->nonZero) { // look for matches in indices of the jth column of matrix_a and the ith column of matrix_b
                 if (matrix_a->values[a_batch_index] == 0 ||
                     matrix_b->values[b_batch_index] == 0) {
                     break;
@@ -97,6 +161,44 @@ void matr_mult_ellpack(const void *a, const void *b, void *result) {
                 }
             }
             if (sum != 0) {
+                nonZero++;
+            }
+        }
+        maxNonZero = maxNonZero > nonZero ? maxNonZero : nonZero;
+    }
+
+    ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, maxNonZero);
+    if (!res) {
+        freeELL(matrix_a);
+        return;
+    }
+
+    //calculate the result
+    for (uint64_t i = 0; i < matrix_b->cols; i++) { // iterate through columns of result
+        uint64_t result_index = i * res->nonZero;
+        for (uint64_t j = 0; j < matrix_a->cols; j++) { // iterate through values in ith column
+            uint64_t a_batch_index = j * matrix_a->nonZero;
+            uint64_t b_batch_index = i * matrix_b->nonZero;
+            float sum = 0;
+            while (a_batch_index < (j + 1) * matrix_a->nonZero &&
+                   b_batch_index < (i + 1) * matrix_b->nonZero) { // look for matching indices in relevant columns of matrix_a and matrix_b
+                if (matrix_a->values[a_batch_index] == 0 ||
+                    matrix_b->values[b_batch_index] == 0) {
+                    break;
+                }
+                uint64_t a_next_index = matrix_a->indicies[a_batch_index];
+                uint64_t b_next_index = matrix_b->indicies[b_batch_index];
+                if (a_next_index == b_next_index) {
+                    sum += matrix_a->values[a_batch_index] * matrix_b->values[b_batch_index];
+                    a_batch_index++;
+                    b_batch_index++;
+                } else if (a_next_index < b_next_index) {
+                    a_batch_index++;
+                } else {
+                    b_batch_index++;
+                }
+            }
+            if (sum != 0) { // write value
                 res->values[result_index] = sum;
                 res->indicies[result_index] = j;
                 result_index++;
@@ -110,115 +212,17 @@ void matr_mult_ellpack(const void *a, const void *b, void *result) {
     freeELL(matrix_a);
 }
 
-// Ellpack normal
-void matr_mult_ellpack_V1(const void *a, const void *b, void *result) {
-  // Cast to structure
-  ELLMatrix *matrix_a = transpose((ELLMatrix *)a);
-  ELLMatrix *matrix_b = (ELLMatrix *)b;
-
-    if (matrix_a == NULL) {
-        return;
-    }
-
-    if (matrix_a->nonZero == 0 || matrix_b->nonZero == 0) {
-        ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, 0);
-        freeELL(matrix_a);
-        if (res) {
-            *((ELLMatrix*) result) = *res;
-            free(res);
-        }
-        return;
-    }
-
-  uint64_t maxNonZero = 0;
-  for (uint64_t i = 0; i < matrix_b->cols; i++) {
-    uint64_t nonZero = 0;
-    for (uint64_t j = 0; j < matrix_a->cols; j++) {
-      uint64_t a_batch_index = j * matrix_a->nonZero;
-      uint64_t b_batch_index = i * matrix_b->nonZero;
-      float sum = 0;
-      while (a_batch_index < (j + 1) * matrix_a->nonZero &&
-             b_batch_index < (i + 1) * matrix_b->nonZero) {
-        if (matrix_a->values[a_batch_index] == 0 ||
-            matrix_b->values[b_batch_index] == 0) {
-          break;
-        }
-        uint64_t a_next_index = matrix_a->indicies[a_batch_index];
-        uint64_t b_next_index = matrix_b->indicies[b_batch_index];
-        if (a_next_index == b_next_index) {
-          sum +=
-              matrix_a->values[a_batch_index] * matrix_b->values[b_batch_index];
-          a_batch_index++;
-          b_batch_index++;
-        } else if (a_next_index < b_next_index) {
-          a_batch_index++;
-        } else {
-          b_batch_index++;
-        }
-      }
-      if (sum != 0) {
-        nonZero++;
-      }
-    }
-    maxNonZero = maxNonZero > nonZero ? maxNonZero : nonZero;
-  }
-
-  ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, maxNonZero);
-  if (!res) {
-    freeELL(matrix_a);
-    return;
-  }
-
-  uint64_t result_index = 0;
-  for (uint64_t i = 0; i < matrix_b->cols; i++) {
-    result_index = i * res->nonZero;
-    for (uint64_t j = 0; j < matrix_a->cols; j++) {
-      uint64_t a_batch_index = j * matrix_a->nonZero;
-      uint64_t b_batch_index = i * matrix_b->nonZero;
-      float sum = 0;
-      while (a_batch_index < (j + 1) * matrix_a->nonZero &&
-             b_batch_index < (i + 1) * matrix_b->nonZero) {
-        if (matrix_a->values[a_batch_index] == 0 ||
-            matrix_b->values[b_batch_index] == 0) {
-          break;
-        }
-        uint64_t a_next_index = matrix_a->indicies[a_batch_index];
-        uint64_t b_next_index = matrix_b->indicies[b_batch_index];
-        if (a_next_index == b_next_index) {
-          sum +=
-              matrix_a->values[a_batch_index] * matrix_b->values[b_batch_index];
-          a_batch_index++;
-          b_batch_index++;
-        } else if (a_next_index < b_next_index) {
-          a_batch_index++;
-        } else {
-          b_batch_index++;
-        }
-      }
-      if (sum != 0) {
-        res->values[result_index] = sum;
-        res->indicies[result_index] = j;
-        result_index++;
-      }
-    }
-  }
-
-  *((ELLMatrix *)result) = *res;
-
-  free(res);
-  freeELL(matrix_a);
-}
-
 // normale MatMul SIMD
 void matr_mult_ellpack_V2(const void *a, const void *b, void *result) {
   // Cast to structure
   ELLMatrix *matrix_a = (ELLMatrix *)a;
-  ELLMatrix *matrix_b = transpose((ELLMatrix *)b);
+  ELLMatrix *matrix_b = transpose((ELLMatrix *)b); // transpose to read through lines
 
     if (matrix_b == NULL) {
         return;
     }
 
+    // result is empty if matrix_a or matrix_b is empty
     if (matrix_a->nonZero == 0 || matrix_b->nonZero == 0) {
         ELLMatrix *res = createELL(matrix_a->cols, matrix_b->cols, 0);
         freeELL(matrix_b);
@@ -229,11 +233,13 @@ void matr_mult_ellpack_V2(const void *a, const void *b, void *result) {
         return;
     }
 
-  // initialize result
+  // cast to normal matrices
   Matrix *ma = fromELL(matrix_a);
   Matrix *mb = fromELL(matrix_b);
+  // initialize result
   Matrix *mr = createMatrix(ma->rows, mb->rows);
 
+  // iterate through entries of result and calculate them
   for (uint64_t i = 0; i < matrix_a->rows; i++) {
     for (uint64_t j = 0; j < matrix_b->rows; j++) {
       if (matrix_a->cols > 3) {
@@ -250,6 +256,7 @@ void matr_mult_ellpack_V2(const void *a, const void *b, void *result) {
 
         mr->data[i][j] += temp[0] + temp[1] + temp[2] + temp[3];
       }
+      // calculate remaining values if matrix_a->cols is not dividable by 4
       for (int k = matrix_a->cols - (matrix_a->cols % 4); k < matrix_a->cols;
            k++) {
         mr->data[i][j] += ma->data[i][k] * mb->data[j][k];
@@ -410,7 +417,7 @@ int main(int argc, char *argv[]) {
     if (ellMatrixa == NULL || ellMatrixb == NULL) {
         if (ellMatrixa != NULL) {
             freeELL(ellMatrixa);
-        } else {
+        } if (ellMatrixb != NULL){
             freeELL(ellMatrixb);
         }
         return EXIT_FAILURE;
@@ -450,7 +457,7 @@ int main(int argc, char *argv[]) {
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (int i = 0; i < numberOfCalls; ++i) {
         f(ellMatrixa, ellMatrixb, output);
-        if (output->cols == 0) {
+        if (output->cols == 0) { //check if multiplication did not work
             freeELL(ellMatrixa);
             freeELL(ellMatrixb);
             free(output);

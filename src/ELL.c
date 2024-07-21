@@ -139,6 +139,7 @@ ELLMatrix *transpose(ELLMatrix *m) {
             return NULL;
         }
     }
+    // calculate nonZero of transposed matrix
     uint64_t max_row_non_zero = 0;
     for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
         if (m->values[i] != 0) {
@@ -155,6 +156,7 @@ ELLMatrix *transpose(ELLMatrix *m) {
         free(occurrences);
         return NULL;
     }
+    // write values and indices to transposed matrix
     for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
         uint64_t index = max_row_non_zero * m->indicies[i];
         uint64_t batch = i / m->nonZero;

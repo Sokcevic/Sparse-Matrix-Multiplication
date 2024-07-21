@@ -3,10 +3,13 @@
 
 ELLMatrix* textFileToEll(char* filename) {
     FILE* file = fopen(filename, "r");
-    if (file == NULL) return NULL;
+    if (file == NULL) {
+        fprintf(stderr, "Could not open file %s\n", filename);
+        return NULL;
+    }
     if (feof(file)) {
         fclose(file);
-        fprintf(stderr, "Could not open file %s\n", filename);
+        fprintf(stderr, "File %s is empty\n", filename);
         return NULL;
     }
     uint64_t rows;
@@ -44,6 +47,7 @@ ELLMatrix* textFileToEll(char* filename) {
                 fscanf(file, "%f,", &(result->values[i]));
             }
         }
+        // read last entry of array (no comma after)
         char lastChar = fgetc(file);
         if (lastChar == EOF) {
             fclose(file);
@@ -82,6 +86,7 @@ ELLMatrix* textFileToEll(char* filename) {
                 lastIndex = result->indicies[i];
             }
         }
+        // read last entry of array (no comma after)
         lastChar = fgetc(file);
         if (lastChar == EOF) {
             fclose(file);
