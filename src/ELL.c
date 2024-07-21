@@ -9,7 +9,7 @@
 ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
     ELLMatrix *result = malloc(sizeof(ELLMatrix));
     if (!result) {
-        fprintf(stderr, "Memory allocation failed!");
+        fprintf(stderr, "Memory allocation failed!\n");
         return NULL;
     }
     result->rows = rows;
@@ -23,14 +23,14 @@ ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
     result->indicies = calloc(result->cols * result->nonZero, sizeof(uint64_t));
     if (!result->indicies) {
         free(result);
-        fprintf(stderr, "Memory allocation failed!");
+        fprintf(stderr, "Memory allocation failed!\n");
         return NULL;
     }
     result->values = calloc(result->cols * result->nonZero, sizeof(float));
     if (!result->values) {
         free(result->indicies);
         free(result);
-        fprintf(stderr, "Memory allocation failed!");
+        fprintf(stderr, "Memory allocation failed!\n");
         return NULL;
     }
     return result;
@@ -50,7 +50,7 @@ ELLMatrix *toELL(Matrix *matrix) {
 
     result = (ELLMatrix *) malloc(sizeof(ELLMatrix));
     if (!result) {
-        fprintf(stderr, "Memory allocation failed!");
+        fprintf(stderr, "Memory allocation failed!\n");
         return NULL;
     }
     result->rows = m;
@@ -81,14 +81,14 @@ ELLMatrix *toELL(Matrix *matrix) {
     result->values = (float *) calloc(size, sizeof(float));
     if (!result->values) {
         free(result);
-        fprintf(stderr, "Memory allocation failed!");
+        fprintf(stderr, "Memory allocation failed!\n");
         return NULL;
     }
     result->indicies = (uint64_t *) calloc(size, sizeof(uint64_t));
     if (!result->indicies) {
         free(result->values);
         free(result);
-        fprintf(stderr, "Memory allocation failed!");
+        fprintf(stderr, "Memory allocation failed!\n");
         return NULL;
     }
 
@@ -133,7 +133,7 @@ Matrix *fromELL(ELLMatrix *m) {
 ELLMatrix *transpose(ELLMatrix *m) {
     uint64_t *occurrences = (uint64_t *) calloc(m->rows, sizeof(uint64_t));
     if (!occurrences) {
-        fprintf(stderr, "Memory allocation failed!");
+        fprintf(stderr, "Memory allocation failed!\n");
         return NULL;
     }
     uint64_t max_row_non_zero = 0;

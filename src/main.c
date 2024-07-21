@@ -239,12 +239,14 @@ void matr_mult_ellpack_V2(const void *a, const void *b, void *result) {
 
 void printHelpMessage() {
     printf("Help Message\n"
-           "-a <filename> : filename of Matrix a (required)\n"
-           "-b <filename> : filename of Matrix b (required)\n"
+           "-a <filename> : filename of matrix a (required)\n"
+           "-b <filename> : filename of matrix b (required)\n"
            "-o <filename> : output-file (required)\n"
-           "-V <Number> : Version to be used. Default: 0\n"
-           "-B<Number> : Measure time for <Number> of executions. Default: 1\n"
-           "-h/--help : Help Message\n");
+           "-V <number> : Version to be used. Default: 0\n"
+           "-B<number> : Measure time for <Number> of executions. Default: 1\n"
+           "-t <size>,<nonZero> : Multiply two random quadratic matrices with given size and maximum amount of <nonZero> values unequal to zero per column (-a, -b and -o not required)\n"
+           "-h/--help : Help Message\n"
+           );
 }
 
 int main(int argc, char *argv[]) {
@@ -259,7 +261,10 @@ int main(int argc, char *argv[]) {
     char* a = NULL;
     char* b = NULL;
     char* o = NULL;
-    while ((option = getopt_long(argc, argv, "hV:B::a:b:o:", long_options, &optionIndex)) != -1) {
+    int test = 0;
+    uint64_t size;
+    uint64_t nonZero;
+    while ((option = getopt_long(argc, argv, "hV:B::a:b:o:t:", long_options, &optionIndex)) != -1) {
         switch (option) {
             case 'V':
                 if (implementation == 0) {
@@ -279,7 +284,12 @@ int main(int argc, char *argv[]) {
                     time = 1;
                     if (optarg) {
                         numberOfCalls = atoi(optarg);
-                        printf("Measuring time for %d executions.\n", numberOfCalls);
+                        if (numberOfCalls == 0) {
+                            numberOfCalls = 1;
+                            printf("Measuring time for 1 execution.\n");
+                        } else {
+                            printf("Measuring time for %d executions.\n", numberOfCalls);
+                        }
                     } else {
                         printf("Measuring time for 1 execution.\n");
                     }
@@ -318,18 +328,56 @@ int main(int argc, char *argv[]) {
             case 'h':
                 printHelpMessage();
                 return EXIT_SUCCESS;
+            case 't':
+                if (test == 0) {
+                    test = 1;
+                    char* firstArg = strtok(optarg, ",");
+                    if (firstArg == NULL) {
+                        fprintf(stderr, "Size and nonZero required for -t\n");
+                        return EXIT_FAILURE;
+                    } else {
+                        size = atoi(firstArg);
+                    }
+                    char* secondArg = strtok(NULL, ",");
+                    if (secondArg == NULL) {
+                        fprintf(stderr, "Size and nonZero required for -t\n");
+                        return EXIT_FAILURE;
+                    } else {
+                        nonZero = atoi(secondArg);
+                        if (nonZero > size - 1) {
+                            fprintf(stderr, "NonZero has to be between 0 and size - 1!\n");
+                            return EXIT_FAILURE;
+                        }
+                    }
+                    printf("Multiplication of two random matrices with size %lu and nonZero %lu\n", size, nonZero);
+                } else {
+                    fprintf(stderr, "Only one t option allowed!\n");
+                    return EXIT_FAILURE;
+                }
+                break;
             default:
                 printHelpMessage();
                 return EXIT_FAILURE;
         }
     }
-    if (a == NULL || b == NULL || o == NULL) {
-        fprintf(stderr,"Options a, b and o required!");
-        return EXIT_FAILURE;
+
+    ELLMatrix* ellMatrixa;
+    ELLMatrix* ellMatrixb;
+
+    if (test == 0) {
+        if (a == NULL || b == NULL || o == NULL) {
+            fprintf(stderr, "Options a, b and o required!\n");
+            return EXIT_FAILURE;
+        }
+
+        ellMatrixa = textFileToEll(a);
+        ellMatrixb = textFileToEll(b);
+
+    } else {
+        ellMatrixa = generateRandomELL(nonZero, size, size, 0.5F);
+        ellMatrixb = generateRandomELL(nonZero, size, size, 0.5F);
     }
 
-    ELLMatrix* ellMatrixa = textFileToEll(a);
-    ELLMatrix* ellMatrixb = textFileToEll(b);
     if (ellMatrixa == NULL || ellMatrixb == NULL) {
         if (ellMatrixa != NULL) {
             freeELL(ellMatrixa);
@@ -349,7 +397,7 @@ int main(int argc, char *argv[]) {
 
     ELLMatrix* output = calloc(1, sizeof(ELLMatrix));
     if (output == NULL) {
-        fprintf(stderr, "Memory allocation failed!");
+        fprintf(stderr, "Memory allocation failed!\n");
         freeELL(ellMatrixa);
         freeELL(ellMatrixb);
         return EXIT_FAILURE;
@@ -384,9 +432,11 @@ int main(int argc, char *argv[]) {
     double sum = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 
     if (time == 1) {
-        printf("Execution of %d function call(s) took %f seconds.\nAverage time: %f\n", numberOfCalls, sum, sum/numberOfCalls);
+        printf("Execution of %d function call(s) took %f seconds.\nAverage time: %f seconds\n", numberOfCalls, sum, sum/numberOfCalls);
     }
-    EllToTextFile(output, o);
+    if (test == 0) {
+        EllToTextFile(output, o);
+    }
     freeELL(ellMatrixa);
     freeELL(ellMatrixb);
     freeELL(output);
