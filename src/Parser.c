@@ -18,15 +18,21 @@ ELLMatrix* textFileToEll(char* filename) {
         printf("Format of first line was wrong");
         return NULL;
     }
+    if (rows == 0 || cols == 0) {
+        fclose(file);
+        printf("Invalid arguments. No matrix with 0 rows or 0 columns allowed");
+        return NULL;
+    }
     uint64_t size = cols * nonZero;
     ELLMatrix* result = createELL(rows, cols, nonZero);
     if (result == NULL) {
         fclose(file);
         return NULL;
     }
+
     for (uint64_t i = 0; i < size - 1; i++) {
         char peek = fgetc(file);
-        if (peek == EOF) {
+        if (peek == EOF || peek == '\n') {
             fclose(file);
             freeELL(result);
             printf("Values array too short!");
@@ -39,9 +45,23 @@ ELLMatrix* textFileToEll(char* filename) {
             fscanf(file, "%f,", &(result->values[i]));
         }
     }
-    fscanf(file, "%f", &(result->values[size - 1]));
+    char lastChar = fgetc(file);
+    if (lastChar == EOF) {
+        fclose(file);
+        freeELL(result);
+        printf("Values array too short!");
+        return NULL;
+    }
+    if (lastChar != '*') {
+        ungetc(lastChar, file);
+        fscanf(file, "%f", &(result->values[size - 1]));
+    }
+
     fgetc(file);
+
+    uint64_t lastIndex;
     for (uint64_t i = 0; i < size - 1; i++) {
+        if (i % nonZero == 0) lastIndex = 0;
         char peek = fgetc(file);
         if (peek == EOF) {
             fclose(file);
@@ -54,9 +74,33 @@ ELLMatrix* textFileToEll(char* filename) {
         } else {
             ungetc(peek, file);
             fscanf(file, "%lu,", &(result->indicies[i]));
+            if (result->indicies[i] < lastIndex || result->indicies[i] >= rows) {
+                fclose(file);
+                freeELL(result);
+                printf("Wrong indices!");
+                return NULL;
+            }
+            lastIndex = result->indicies[i];
         }
     }
-    fscanf(file, "%lu", &(result->indicies[size - 1]));
+    lastChar = fgetc(file);
+    if (lastChar == EOF) {
+        fclose(file);
+        freeELL(result);
+        printf("Indices array too short!");
+        return NULL;
+    }
+    if (lastChar != '*') {
+        ungetc(lastChar, file);
+        fscanf(file, "%lu", &(result->indicies[size - 1]));
+        if (result->indicies[size - 1] < lastIndex || result->indicies[size - 1] >= rows) {
+            fclose(file);
+            freeELL(result);
+            printf("Wrong indices!");
+            return NULL;
+        }
+    }
+
     fclose(file);
     return result;
 }
@@ -96,4 +140,5 @@ void EllToTextFile(ELLMatrix* ell, char* filename) {
     } else {
         fprintf(file, "%lu", ell->indicies[size - 1]);
     }
+    fclose(file);
 }

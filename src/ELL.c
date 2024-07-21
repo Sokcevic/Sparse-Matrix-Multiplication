@@ -192,3 +192,27 @@ void freeELL(ELLMatrix *ell) {
     free(ell->values);
     free(ell);
 }
+
+ELLMatrix *generateRandomELL(uint64_t nonZero, uint64_t rows, uint64_t cols,
+                             float dcRate) {
+    ELLMatrix *result = createELL(rows, cols, nonZero);
+    if (!result) {
+        return NULL;
+    }
+    for (uint64_t i = 0; i < cols; i++) {
+        uint64_t dc = 0;
+        if ((float)rand() / (float)RAND_MAX < dcRate) {
+            dc = (rand() % nonZero);
+        }
+        for (uint64_t j = 0; j < nonZero - dc; j++) {
+            if (j >= cols * nonZero) {
+                printf(" ");
+            }
+            result->values[i * nonZero + j] =
+                    (1000.0F * ((float)rand() / (float)RAND_MAX)) +
+                    ((float)rand() / (float)RAND_MAX);
+            result->indicies[i * nonZero + j] = j;
+        }
+    }
+    return result;
+}

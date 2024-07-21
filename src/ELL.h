@@ -21,5 +21,6 @@ void freeELL(ELLMatrix *ell);
 ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero);
 float ellEquals(ELLMatrix *a, ELLMatrix *b);
 void printEll(ELLMatrix *m);
+ELLMatrix *generateRandomELL(uint64_t nonZero, uint64_t rows, uint64_t cols, float dcRate);
 
 #endif // ELLMATRIX_H
