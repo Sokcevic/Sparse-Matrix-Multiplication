@@ -170,6 +170,11 @@ __host__ void freeFromDevice(ELLMatrix *d_matrix) {
   }
   cudaError_t err =
       cudaMemcpy(m, d_matrix, sizeof(ELLMatrix), cudaMemcpyDeviceToHost);
+  if (err != cudaSuccess) {
+    fprintf(stderr, "Error while copying from Device! %s \n", cudaGetErrorString(err));
+    return;
+  
+  }
   cudaFree(m->indicies);
   cudaFree(m->values);
   cudaFree(d_matrix);

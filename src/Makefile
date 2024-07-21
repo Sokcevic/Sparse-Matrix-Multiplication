@@ -29,7 +29,7 @@ TARGET := $(basename $(ASSIGNMENT))
 CUDA_TARGET := $(basename $(ASSIGNMENT_CUDA))
 
 # Default to release build for both app and library
-all: debug
+all: release
 
 # Debug build
 debug: CFLAGS += -g

@@ -65,6 +65,7 @@ __host__ void copyFromDevice(Matrix *src, Matrix *target) {
 
   cudaError_t err = cudaMemcpy(m, src, sizeof(Matrix), cudaMemcpyDeviceToHost);
   if (err != cudaSuccess) {
+    free(m);
     fprintf(stderr, "Couldn't copy from device: %s\n", cudaGetErrorString(err));
     return;
   }
@@ -74,9 +75,11 @@ __host__ void copyFromDevice(Matrix *src, Matrix *target) {
                    target->cols * target->rows * sizeof(float),
                    cudaMemcpyDeviceToHost);
   if (err != cudaSuccess) {
+    free(m);
     fprintf(stderr, "Couldn't copy from device: %s\n", cudaGetErrorString(err));
     return;
   }
+  free(m);
 }
 
 __host__ void freeMatrix(Matrix *a) {
