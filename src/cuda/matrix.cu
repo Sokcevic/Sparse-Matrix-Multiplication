@@ -92,7 +92,7 @@ __global__ void matmul(Matrix *a, Matrix *b, Matrix *result) {
   // Calculate the column index of the result matrix
   uint64_t col = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (row < result->rows && col < result->cols) {
+  if (row < a->rows && col < b->cols) {
     float sum = 0.0;
     for (uint64_t k = 0; k < a->cols; k++) {
       sum += a->data[row * a->cols + k] * b->data[k * b->cols + col];

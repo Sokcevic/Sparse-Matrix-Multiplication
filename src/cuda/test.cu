@@ -1,13 +1,14 @@
-#include "matrix.cuh"
-#include <cstdint>
+#include "ELL.cuh"
+#include "main.cu"
+#include <bits/time.h>
 #include <cstdio>
 #include <cstdlib>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 
+/**
 __host__ Matrix *generateRandomMatrix(float zeroRate, uint64_t rows,
                                       uint64_t cols) {
   Matrix *result = createMatrix(rows, cols);
@@ -24,7 +25,6 @@ __host__ Matrix *generateRandomMatrix(float zeroRate, uint64_t rows,
   }
   return result;
 }
-/**
 __host__ ELLMatrix *generateRandomELL(uint64_t nonZero, uint64_t rows,
                                       uint64_t cols, float dcRate) {
   ELLMatrix *result = (ELLMatrix *)calloc(1, sizeof(ELLMatrix));
@@ -174,7 +174,6 @@ void test_matmul_large() {
   // test_matmul(300, 500, 500, 300, 0.3, &matr_mult_ellpack_v6);
 }
 
-**/
 __host__ Matrix *matmul(Matrix *a, Matrix *b) {
   Matrix *c = createMatrix(a->rows, b->cols);
   for (uint64_t i = 0; i < a->rows; ++i) {
@@ -187,6 +186,8 @@ __host__ Matrix *matmul(Matrix *a, Matrix *b) {
   }
   return c;
 }
+**/
+
 int main(void) {
 
   int deviceCount = 0;
@@ -205,42 +206,65 @@ int main(void) {
   } else {
     printf("Detected %d CUDA-capable device(s).\n", deviceCount);
   }
-
-  Matrix *a = generateRandomMatrix(0.1, 400000, 500000);
-  float* data = a->data;
+  /**
+  Matrix *a = generateRandomMatrix(0.1, 4000, 5000);
   Matrix *d_a = toDevice(a);
-  //printf("pointer %d", ((d_a->data) == data));
-  
 
-  Matrix *b = generateRandomMatrix(0.1, 500000, 200000);
+  Matrix *b = generateRandomMatrix(0.1, 5000, 2000);
   Matrix *d_b = toDevice(b);
 
   Matrix *c = createMatrix(4, 2);
   Matrix *d_c = toDevice(c);
 
-  dim3 dimBlock(16, 16);
-  dim3 dimGrid((c->cols + dimBlock.x - 1) / 16, (c->rows + dimBlock.y - 1) / 16);
-  
-  matmul<<<dimGrid, dimBlock>>>(d_a, d_b, d_c);
-  cudaError_t err = cudaDeviceSynchronize();
-  if (err != cudaSuccess) {
-    fprintf(stderr, "CudaError: %s", cudaGetErrorString(err));
+  dim3 dimBlock(32, 32);
+  dim3 dimGrid((c->cols + dimBlock.x - 1) / 16,
+               (c->rows + dimBlock.y - 1) / 16);
+
+  struct timespec start, end;
+
+  clock_gettime(CLOCK_MONOTONIC, &start);
+
+  for (int i = 0; i < 10; i++) {
+    matmul<<<dimGrid, dimBlock>>>(d_a, d_b, d_c);
+
+    cudaError_t err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+      fprintf(stderr, "CudaError: %s", cudaGetErrorString(err));
+    }
   }
+  clock_gettime(CLOCK_MONOTONIC, &end);
 
+  double sum =
+      (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+  printf("Took: %fs", sum);
   copyFromDevice(d_c, c);
+**/
 
-  float f = matrixEqual(c, matmul(a, b));
-  printf("diff: %f", f);
-  // test_matmul_large();
-  // testELLMul(30000, 50000, 50000, 30000, 0.6, &matr_mult_ellpack_v7);
-  //  testELL();
-  // char input[] = ""
-  //               "src/TestELLInput.txt";
-  // ELLMatrix *test = textFileToEll(input);
-  // printEll(test);
-  // char output[] = ""
-  //                "src/TestEllOutput.txt";
-  // EllToTextFile(test, output);
-  // freeELL(test);
+  ELLMatrix *a = generateRandomELL(4, 100, 100, 0.1);
+  ELLMatrix *b = generateRandomELL(3, 100, 100, 0.1);
+  ELLMatrix *c = (ELLMatrix *)calloc(1, sizeof(ELLMatrix));
+  createELL(100, 100, 0, c);
+
+  matr_mult_ellpack_v6(a, b, c);
+
+  printEll(a);
+  printf("\n");
+  printEll(b);
+  printf("\n");
+  printEll(c);
+
+  // float f = matrixEqual(c, matmul(a, b));
+  // printf("diff: %f", f);
+  //  test_matmul_large();
+  //  testELLMul(30000, 50000, 50000, 30000, 0.6, &matr_mult_ellpack_v7);
+  //   testELL();
+  //  char input[] = ""
+  //                "src/TestELLInput.txt";
+  //  ELLMatrix *test = textFileToEll(input);
+  //  printEll(test);
+  //  char output[] = ""
+  //                 "src/TestEllOutput.txt";
+  //  EllToTextFile(test, output);
+  //  freeELL(test);
   return EXIT_SUCCESS;
 }
