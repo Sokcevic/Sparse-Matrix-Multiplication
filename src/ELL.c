@@ -24,7 +24,7 @@ ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
         free(result);
         return NULL; // TODO: Error Handling
     }
-    result->values = calloc(result->cols * result->nonZero, sizeof(uint64_t));
+    result->values = calloc(result->cols * result->nonZero, sizeof(float));
     if (!result->values) {
         free(result->indicies);
         free(result);
