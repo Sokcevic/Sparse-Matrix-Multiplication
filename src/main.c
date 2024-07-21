@@ -9,14 +9,13 @@
 #include <emmintrin.h>
 
 //Ellpack parallel
-void matr_mult_ellpack_v0(const void *a, const void *b, void *result) {
+void matr_mult_ellpack(const void *a, const void *b, void *result) {
     // Cast to structure
     ELLMatrix *matrix_a = transpose((ELLMatrix *)a);
     ELLMatrix *matrix_b = (ELLMatrix *)b;
 
-    // Check if multiplication is possible
-    if (matrix_a->rows != matrix_b->rows) {
-        return; // Not allowed TODO: Error Handling
+    if (matrix_a == NULL) {
+        return;
     }
 
     uint64_t maxNonZero = 0;
@@ -103,15 +102,14 @@ void matr_mult_ellpack_v0(const void *a, const void *b, void *result) {
 }
 
 // Ellpack normal
-void matr_mult_ellpack_v1(const void *a, const void *b, void *result) {
+void matr_mult_ellpack_V1(const void *a, const void *b, void *result) {
   // Cast to structure
   ELLMatrix *matrix_a = transpose((ELLMatrix *)a);
   ELLMatrix *matrix_b = (ELLMatrix *)b;
 
-  // Check if multiplication is possible
-  if (matrix_a->rows != matrix_b->rows) {
-    return; // Not allowed TODO: Error Handling
-  }
+    if (matrix_a == NULL) {
+        return;
+    }
 
   uint64_t maxNonZero = 0;
   for (uint64_t i = 0; i < matrix_b->cols; i++) {
@@ -193,16 +191,14 @@ void matr_mult_ellpack_v1(const void *a, const void *b, void *result) {
 }
 
 // normale MatMul SIMD
-void matr_mult_ellpack_v2(const void *a, const void *b, void *result) {
+void matr_mult_ellpack_V2(const void *a, const void *b, void *result) {
   // Cast to structure
   ELLMatrix *matrix_a = (ELLMatrix *)a;
   ELLMatrix *matrix_b = transpose((ELLMatrix *)b);
 
-  // Check if multiplication is possible
-  if (matrix_a->cols != matrix_b->cols) {
-    freeELL(matrix_b);
-    return; // Not allowed
-  }
+    if (matrix_b == NULL) {
+        return;
+    }
 
   // initialize result
   Matrix *ma = fromELL(matrix_a);
@@ -329,28 +325,47 @@ int main(int argc, char *argv[]) {
     }
     if (a == NULL || b == NULL || o == NULL) {
         fprintf(stderr,"Options a, b and o required!");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     ELLMatrix* ellMatrixa = textFileToEll(a);
     ELLMatrix* ellMatrixb = textFileToEll(b);
-    if (ellMatrixa == NULL || ellMatrixb == NULL) return 1;
-    ELLMatrix* output = malloc(sizeof(ELLMatrix));
+    if (ellMatrixa == NULL || ellMatrixb == NULL) {
+        if (ellMatrixa != NULL) {
+            freeELL(ellMatrixa);
+        } else {
+            freeELL(ellMatrixb);
+        }
+        return EXIT_FAILURE;
+    }
+
+    // Check if multiplication is possible
+    if (ellMatrixa->cols != ellMatrixb->cols) {
+        fprintf(stderr, "Cannot multiply a matrix with %llu columns by a matrix with %llu rows\n", ellMatrixa->rows, ellMatrixb->rows);
+        freeELL(ellMatrixa);
+        freeELL(ellMatrixb);
+        return EXIT_FAILURE;
+    }
+
+    ELLMatrix* output = calloc(1, sizeof(ELLMatrix));
     if (output == NULL) {
         fprintf(stderr, "Memory allocation failed!");
+        freeELL(ellMatrixa);
+        freeELL(ellMatrixb);
+        return EXIT_FAILURE;
     }
 
     void (*f)(const void *, const void *, void *);
 
     switch (implementation) {
         case 0:
-            f = &matr_mult_ellpack_v0;
+            f = &matr_mult_ellpack;
             break;
         case 1:
-            f = &matr_mult_ellpack_v1;
+            f = &matr_mult_ellpack_V1;
             break;
         case 2:
-            f = &matr_mult_ellpack_v2;
+            f = &matr_mult_ellpack_V2;
             break;
     }
 
@@ -358,6 +373,12 @@ int main(int argc, char *argv[]) {
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (int i = 0; i < numberOfCalls; ++i) {
         f(ellMatrixa, ellMatrixb, output);
+        if (output->cols == 0) {
+            freeELL(ellMatrixa);
+            freeELL(ellMatrixb);
+            free(output);
+            return EXIT_FAILURE;
+        }
     }
     clock_gettime(CLOCK_MONOTONIC, &end);
     double sum = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;

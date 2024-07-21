@@ -37,20 +37,23 @@ void matmul(Matrix *a, Matrix *b, Matrix *result) {
 Matrix *createMatrix(uint64_t rows, uint64_t cols) {
   Matrix *result = malloc(sizeof(Matrix));
   if (result == NULL) {
-    return NULL;//TODO: Error handling
+    fprintf(stderr, "Memory allocation failed!");
+    return NULL;
   }
   result->rows = rows;
   result->cols = cols;
   result->data = malloc(rows * sizeof(float *));
   if (result->data == NULL) {
+    fprintf(stderr, "Memory allocation failed!");
     free(result);
-    return NULL;//TODO: Error handling
+    return NULL;
   }
   for (uint64_t i = 0; i < rows; i++) {
     result->data[i] = calloc(cols, sizeof(float));
     if (result->data[i] == NULL) {
+      fprintf(stderr, "Memory allocation failed!");
       freeMatrix(result);
-      return NULL;//TODO: Error handling
+      return NULL;
     }
   }
   return result;

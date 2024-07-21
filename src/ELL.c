@@ -9,7 +9,8 @@
 ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
     ELLMatrix *result = malloc(sizeof(ELLMatrix));
     if (!result) {
-        return NULL; // TODO: Error handling
+        fprintf(stderr, "Memory allocation failed!");
+        return NULL;
     }
     result->rows = rows;
     result->cols = cols;
@@ -22,13 +23,15 @@ ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
     result->indicies = calloc(result->cols * result->nonZero, sizeof(uint64_t));
     if (!result->indicies) {
         free(result);
-        return NULL; // TODO: Error Handling
+        fprintf(stderr, "Memory allocation failed!");
+        return NULL;
     }
     result->values = calloc(result->cols * result->nonZero, sizeof(uint64_t));
     if (!result->values) {
         free(result->indicies);
         free(result);
-        return NULL; // TODO: Error Handling
+        fprintf(stderr, "Memory allocation failed!");
+        return NULL;
     }
     return result;
 }
@@ -47,7 +50,8 @@ ELLMatrix *toELL(Matrix *matrix) {
 
     result = (ELLMatrix *) malloc(sizeof(ELLMatrix));
     if (!result) {
-        return NULL; // TODO: replace
+        fprintf(stderr, "Memory allocation failed!");
+        return NULL;
     }
     result->rows = m;
     result->cols = n;
@@ -77,13 +81,15 @@ ELLMatrix *toELL(Matrix *matrix) {
     result->values = (float *) calloc(size, sizeof(float));
     if (!result->values) {
         free(result);
-        return NULL; // TODO: Error handling
+        fprintf(stderr, "Memory allocation failed!");
+        return NULL;
     }
     result->indicies = (uint64_t *) calloc(size, sizeof(uint64_t));
     if (!result->indicies) {
         free(result->values);
         free(result);
-        return NULL; // TODO: Error handling
+        fprintf(stderr, "Memory allocation failed!");
+        return NULL;
     }
 
     uint64_t elements_added = 0;
@@ -127,7 +133,8 @@ Matrix *fromELL(ELLMatrix *m) {
 ELLMatrix *transpose(ELLMatrix *m) {
     uint64_t *occurrences = (uint64_t *) calloc(m->rows, sizeof(uint64_t));
     if (!occurrences) {
-        return NULL; // TODO: Error handling
+        fprintf(stderr, "Memory allocation failed!");
+        return NULL;
     }
     uint64_t max_row_non_zero = 0;
     for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
@@ -142,7 +149,7 @@ ELLMatrix *transpose(ELLMatrix *m) {
     ELLMatrix *result = createELL(m->cols, m->rows, max_row_non_zero);
     if (!result) {
         free(occurrences);
-        return NULL; // TODO: Error Handling
+        return NULL;
     }
     for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
         uint64_t index = max_row_non_zero * m->indicies[i];
