@@ -61,10 +61,10 @@ Matrix *createMatrix(uint64_t rows, uint64_t cols) {
 
 float matrixEqual(Matrix *a, Matrix *b) {
   if (a == NULL || b == NULL) {
-    return -1.0F;//TODO: Error handling
+    return -1.0F;
   }
   if (a->rows != b->rows || a->cols != b->cols) {
-    return -1.0F;//TODO: Error handling
+    return -1.0F;
   }
   float max = 0.0F;
   for (int i = 0; i < a->rows; i++) {

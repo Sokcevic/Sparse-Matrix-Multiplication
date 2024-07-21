@@ -112,28 +112,28 @@ __global__ void matmul(Matrix *a, Matrix *b, Matrix *result) {
 __host__ Matrix *createMatrix(uint64_t rows, uint64_t cols) {
   Matrix *result = (Matrix *)malloc(sizeof(Matrix));
   if (result == NULL) {
-    return NULL; // TODO: Error handling
+    return NULL; 
   }
   result->rows = rows;
   result->cols = cols;
   result->data = (float *)calloc(rows * cols, sizeof(float));
   if (result->data == NULL) {
     free(result);
-    return NULL; // TODO: Error handling
+    return NULL; 
   }
   return result;
 }
 
 __host__ float matrixEqual(Matrix *a, Matrix *b) {
   if (a == NULL || b == NULL) {
-    return -1.0F; // TODO: Error handling
+    return -1.0F; 
   }
   if (a->rows != b->rows || a->cols != b->cols) {
-    return -1.0F; // TODO: Error handling
+    return -1.0F;
   }
   if (a->data == NULL || b->data == NULL) {
     fprintf(stderr, "Error: One or both data pointers are NULL.\n");
-    return -1.0F; // TODO: Error handling
+    return -1.0F; 
   }
   float max = 0.0F;
   for (uint64_t i = 0; i < a->rows * a->cols; i++) {

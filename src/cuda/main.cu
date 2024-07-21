@@ -273,6 +273,8 @@ void matr_mult_ellpack_V2(const void *a, const void *b, void *result) {
   freeMatrix(mr);
 }
 
+
+//helper Method to calculate the Maximum Number of nonZero values per Col after a and b have been multiplied
 __global__ void maxNonZeroMul(ELLMatrix *a, ELLMatrix *b, uint64_t *result) {
   extern __shared__ uint64_t nonZero[];
 
@@ -314,6 +316,7 @@ __global__ void maxNonZeroMul(ELLMatrix *a, ELLMatrix *b, uint64_t *result) {
   atomicMax((unsigned long long *)result, (unsigned long long)nonZero[b_batch]);
 }
 
+//Multiplies two matrices in ELLPACK format and returns the result in c
 __global__ void ELLMul(ELLMatrix *a, ELLMatrix *b, ELLMatrix *c) {
   uint64_t row = blockDim.y * blockIdx.y + threadIdx.y;
   uint64_t col = blockDim.x * blockIdx.x + threadIdx.x;
@@ -343,6 +346,8 @@ __global__ void ELLMul(ELLMatrix *a, ELLMatrix *b, ELLMatrix *c) {
     }
   }
 }
+
+//Matrix multiplication in ELLPACK Format with GPU support
 __host__ void matr_mult_ellpack_V3(const void *a, const void *b, void *result) {
   if (((ELLMatrix *)a)->nonZero == 0 || ((ELLMatrix *)b)->nonZero == 0) {
     ELLMatrix *res =
@@ -418,6 +423,7 @@ __host__ void matr_mult_ellpack_V3(const void *a, const void *b, void *result) {
   freeFromDevice(d_b);
 }
 
+//Matrixmultiplication with GPU support
 __host__ void matr_mult_ellpack_V4(const void *a, const void *b, void *result) {
   if (((ELLMatrix *)a)->nonZero == 0 || ((ELLMatrix *)b)->nonZero == 0) {
     ELLMatrix *res =
