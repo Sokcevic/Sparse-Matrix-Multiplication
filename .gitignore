@@ -1,1 +1,5 @@
 src/main
+src/ell_test
+src/ell_test_cuda
+src/main_cuda
+src/build-cuda/

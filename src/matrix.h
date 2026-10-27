@@ -4,7 +4,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct {
     uint64_t rows;
@@ -13,9 +16,13 @@ typedef struct {
 } Matrix;
 
 void freeMatrix(Matrix* a);
-void printMatrix(Matrix* m); 
-void matmul(Matrix* a, Matrix* b, Matrix* result);
+void printMatrix(const Matrix* m);
+void matmul(const Matrix* a, const Matrix* b, Matrix* result);
 Matrix *createMatrix(uint64_t rows, uint64_t cols);
-float matrixEqual(Matrix* a, Matrix* b);
+float matrixEqual(const Matrix* a, const Matrix* b);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif 

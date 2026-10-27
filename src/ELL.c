@@ -1,11 +1,18 @@
 #include "ELL.h"
 #include "matrix.h"
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
+  // cols * nonZero * sizeof(uint64_t) must fit into size_t
+  if (nonZero != 0 && cols > SIZE_MAX / sizeof(uint64_t) / nonZero) {
+    fprintf(stderr, "Matrix with %" PRIu64 " columns and %" PRIu64
+                    " non-zero values per column is too large!\n",
+            cols, nonZero);
+    return NULL;
+  }
   ELLMatrix *result = malloc(sizeof(ELLMatrix));
   if (!result) {
     fprintf(stderr, "Memory allocation failed!\n");
@@ -19,17 +26,11 @@ ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
     result->values = NULL;
     return result;
   }
-  result->indicies = calloc(result->cols * result->nonZero, sizeof(uint64_t));
-  if (!result->indicies) {
-    free(result);
+  result->indicies = calloc(cols * nonZero, sizeof(uint64_t));
+  result->values = calloc(cols * nonZero, sizeof(float));
+  if (!result->indicies || !result->values) {
     fprintf(stderr, "Memory allocation failed!\n");
-    return NULL;
-  }
-  result->values = calloc(result->cols * result->nonZero, sizeof(float));
-  if (!result->values) {
-    free(result->indicies);
-    free(result);
-    fprintf(stderr, "Memory allocation failed!\n");
+    freeELL(result);
     return NULL;
   }
   return result;
@@ -41,22 +42,15 @@ ELLMatrix *createELL(uint64_t rows, uint64_t cols, uint64_t nonZero) {
  * struct
  *
  */
-ELLMatrix *toELL(Matrix *matrix) {
-
-  ELLMatrix *result; // initialize
+ELLMatrix *toELL(const Matrix *matrix) {
   uint64_t m = matrix->rows;
   uint64_t n = matrix->cols;
 
-  result = (ELLMatrix *)malloc(sizeof(ELLMatrix));
-  if (!result) {
+  uint64_t *nonZero = calloc(n, sizeof(uint64_t));
+  if (n != 0 && !nonZero) {
     fprintf(stderr, "Memory allocation failed!\n");
     return NULL;
   }
-  result->rows = m;
-  result->cols = n;
-
-  uint64_t nonZero[n];
-  memset(nonZero, 0, sizeof(nonZero));
   // calculate max number of non Zero values per column
   for (uint64_t i = 0; i < m; i++) // Use Cache properly
     for (uint64_t j = 0; j < n; j++)
@@ -67,58 +61,33 @@ ELLMatrix *toELL(Matrix *matrix) {
   for (uint64_t i = 0; i < n; i++)
     if (nonZero[i] > max)
       max = nonZero[i];
+  free(nonZero);
 
-  result->nonZero = max;
-  __uint128_t size = (__uint128_t)max * (__uint128_t)n;
-
-  if (size == 0) {
-    result->indicies = NULL;
-    result->values = NULL;
-    return result;
-  }
-
-  result->values = (float *)calloc(size, sizeof(float));
-  if (!result->values) {
-    free(result);
-    fprintf(stderr, "Memory allocation failed!\n");
-    return NULL;
-  }
-  result->indicies = (uint64_t *)calloc(size, sizeof(uint64_t));
-  if (!result->indicies) {
-    free(result->values);
-    free(result);
-    fprintf(stderr, "Memory allocation failed!\n");
+  ELLMatrix *result = createELL(m, n, max);
+  if (!result) {
     return NULL;
   }
 
-  uint64_t elements_added = 0;
+  // padding slots are already 0 thanks to calloc
   for (uint64_t i = 0; i < n; i++) { // iterate columns
-    uint64_t added = 0;
-    uint64_t dc = 0;
+    uint64_t index = i * max;
     for (uint64_t j = 0; j < m; j++) { // iterate rows
       if (matrix->data[j][i] != 0) {
-        (result->values)[elements_added] = matrix->data[j][i];
-        (result->indicies)[elements_added] = j;
-        elements_added++;
-        added++;
-        if (elements_added % (max) == 0)
-          break;
-      } else {
-        dc = j;
+        result->values[index] = matrix->data[j][i];
+        result->indicies[index] = j;
+        index++;
       }
-    }
-    for (; added < max; added++) {
-      (result->values)[elements_added] = 0;
-      (result->indicies)[elements_added] = dc;
-      elements_added++;
     }
   }
 
   return result;
 }
 
-Matrix *fromELL(ELLMatrix *m) {
+Matrix *fromELL(const ELLMatrix *m) {
   Matrix *result = createMatrix(m->rows, m->cols);
+  if (!result) {
+    return NULL;
+  }
 
   for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
     if (m->values[i] != 0) {
@@ -128,109 +97,137 @@ Matrix *fromELL(ELLMatrix *m) {
   return result;
 }
 
-ELLMatrix *transpose(ELLMatrix *m) {
-  uint64_t *occurrences = NULL;
-  if (m->nonZero != 0) {
-    occurrences = (uint64_t *)calloc(m->rows, sizeof(uint64_t));
-    if (!occurrences) {
-      fprintf(stderr, "Memory allocation failed!\n");
-      return NULL;
-    }
+ELLMatrix *transpose(const ELLMatrix *m) {
+  uint64_t size = m->cols * m->nonZero;
+  // occurrences[r] = number of non-zero values in row r
+  uint64_t *occurrences = calloc(m->rows, sizeof(uint64_t));
+  if (m->rows != 0 && !occurrences) {
+    fprintf(stderr, "Memory allocation failed!\n");
+    return NULL;
   }
   // calculate nonZero of transposed matrix
   uint64_t max_row_non_zero = 0;
-  for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
+  for (uint64_t i = 0; i < size; i++) {
     if (m->values[i] != 0) {
-      uint64_t idx = occurrences[m->indicies[i]];
-      occurrences[m->indicies[i]] = ++idx;
-      if (idx > max_row_non_zero) {
-        max_row_non_zero = idx;
+      uint64_t count = ++occurrences[m->indicies[i]];
+      if (count > max_row_non_zero) {
+        max_row_non_zero = count;
       }
     }
   }
   ELLMatrix *result = createELL(m->cols, m->rows, max_row_non_zero);
   if (!result) {
-    if (occurrences)
-      free(occurrences);
+    free(occurrences);
     return NULL;
   }
-  // write values and indices to transposed matrix
-  for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
-    uint64_t index = max_row_non_zero * m->indicies[i];
-    uint64_t batch = i / m->nonZero;
-    for (; result->values[index] != 0; index++)
-      ;
-    // Next free index
-
-    result->values[index] = m->values[i];
-    result->indicies[index] = batch;
+  // write values and indices to transposed matrix. The columns of m are
+  // visited in ascending order, so the indices of every row end up sorted.
+  for (uint64_t r = 0; r < m->rows; r++) {
+    occurrences[r] = 0;
   }
-  if (occurrences != NULL)
-    free(occurrences);
+  for (uint64_t i = 0; i < size; i++) {
+    if (m->values[i] == 0) {
+      continue; // padding, its index is meaningless
+    }
+    uint64_t row = m->indicies[i];
+    uint64_t index = max_row_non_zero * row + occurrences[row]++;
+    result->values[index] = m->values[i];
+    result->indicies[index] = i / m->nonZero;
+  }
+  free(occurrences);
   return result;
 }
 
-float ellEquals(ELLMatrix *a, ELLMatrix *b) {
+/**
+ * Returns the maximum absolute difference between the values of a and b,
+ * -1 if the dimensions differ and -2 if the positions of the values differ.
+ */
+float ellEquals(const ELLMatrix *a, const ELLMatrix *b) {
   if (a->cols != b->cols || a->rows != b->rows || a->nonZero != b->nonZero) {
     return -1.0F;
   }
   float max = 0.0F;
   for (uint64_t i = 0; i < a->cols * a->nonZero; i++) {
-    if (a->indicies[i] != b->indicies[i])
+    if ((a->values[i] == 0) != (b->values[i] == 0))
       return -2.0F;
-    if (a->values[i] != b->values[i]) {
-      float val = a->values[i] - b->values[i];
-      val = val < 0 ? -val : val;
-      max = val > max ? val : max;
-    }
+    if (a->values[i] != 0 && a->indicies[i] != b->indicies[i])
+      return -2.0F;
+    float val = a->values[i] - b->values[i];
+    val = val < 0 ? -val : val;
+    max = val > max ? val : max;
   }
   return max;
 }
 
-void printEll(ELLMatrix *m) {
+void printEll(const ELLMatrix *m) {
   printf("ELL: \n");
-  printf("cols: %lu \n", m->cols);
-  printf("rows: %lu \n", m->rows);
-  printf("nonZero: %lu \n", m->nonZero);
-  for (int i = 0; i < m->cols * m->nonZero; i++) {
+  printf("cols: %" PRIu64 " \n", m->cols);
+  printf("rows: %" PRIu64 " \n", m->rows);
+  printf("nonZero: %" PRIu64 " \n", m->nonZero);
+  for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
     printf("%f,", m->values[i]);
   }
   printf("\n");
-  for (int i = 0; i < m->cols * m->nonZero; i++) {
-    printf("%lu,", m->indicies[i]);
+  for (uint64_t i = 0; i < m->cols * m->nonZero; i++) {
+    printf("%" PRIu64 ",", m->indicies[i]);
   }
+  printf("\n");
 }
 
 void freeELL(ELLMatrix *ell) {
-  if (ell->indicies)
-    free(ell->indicies);
-  if (ell->values)
-    free(ell->values);
+  if (!ell)
+    return;
+  free(ell->indicies);
+  free(ell->values);
   free(ell);
 }
 
+// uniformly distributed random number in [0, n)
+static uint64_t randomBelow(uint64_t n) {
+  uint64_t r = 0;
+  for (int i = 0; i < 4; i++) { // RAND_MAX is only guaranteed to be 2^15 - 1
+    r = (r << 16) ^ (uint64_t)rand();
+  }
+  return r % n;
+}
+
+static int compareIndices(const void *a, const void *b) {
+  uint64_t x = *(const uint64_t *)a;
+  uint64_t y = *(const uint64_t *)b;
+  return (x > y) - (x < y);
+}
+
+/**
+ * Generates a random matrix with up to nonZero values per column at random
+ * rows. With probability dcRate a column gets fewer values (padding).
+ */
 ELLMatrix *generateRandomELL(uint64_t nonZero, uint64_t rows, uint64_t cols,
                              float dcRate) {
-  ELLMatrix *result = createELL(rows, cols, nonZero);
-  if (!result) {
-    return NULL;
+  if (nonZero > rows) {
+    nonZero = rows;
   }
-  if (nonZero == 0) {
+  ELLMatrix *result = createELL(rows, cols, nonZero);
+  if (!result || nonZero == 0) {
     return result;
   }
   for (uint64_t i = 0; i < cols; i++) {
     uint64_t dc = 0;
     if ((float)rand() / (float)RAND_MAX < dcRate) {
-      dc = (rand() % nonZero);
+      dc = randomBelow(nonZero);
     }
-    for (uint64_t j = 0; j < nonZero - dc; j++) {
-      if (j >= cols * nonZero) {
-        break;
-      }
+    uint64_t count = nonZero - dc;
+    uint64_t *indices = &result->indicies[i * nonZero];
+    // sorted random values from [0, rows - count] plus their position are
+    // sorted, distinct and smaller than rows
+    for (uint64_t j = 0; j < count; j++) {
+      indices[j] = randomBelow(rows - count + 1);
+    }
+    qsort(indices, count, sizeof(uint64_t), compareIndices);
+    for (uint64_t j = 0; j < count; j++) {
+      indices[j] += j;
       result->values[i * nonZero + j] =
           (1000.0F * ((float)rand() / (float)RAND_MAX)) +
-          ((float)rand() / (float)RAND_MAX);
-      result->indicies[i * nonZero + j] = j;
+          ((float)rand() / (float)RAND_MAX) + 1.0F; // never 0
     }
   }
   return result;

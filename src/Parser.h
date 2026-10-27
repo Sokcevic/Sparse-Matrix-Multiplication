@@ -1,8 +1,10 @@
-#include "ELL.h"
 #ifndef SPMM_PARSER_H
 #define SPMM_PARSER_H
 
-ELLMatrix* textFileToEll(char* filename);
-void EllToTextFile(ELLMatrix* ell, char* filename);
+#include "ELL.h"
+#include <stdbool.h>
 
-#endif //SPMM_PARSER_H
+ELLMatrix *textFileToEll(const char *filename);
+bool EllToTextFile(const ELLMatrix *ell, const char *filename);
+
+#endif // SPMM_PARSER_H
